@@ -29,19 +29,19 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
-        <receiver android:name=".TinyReceiver" android:exported="true" android:label="Dailies · 2×1">
+        <receiver android:name=".TinyReceiver" android:exported="true" android:label="Dailies · Today">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_tiny" />
         </receiver>
-        <receiver android:name=".SmallReceiver" android:exported="true" android:label="Dailies · Small">
+        <receiver android:name=".SmallReceiver" android:exported="true" android:label="Dailies · Up next">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_small" />
         </receiver>
-        <receiver android:name=".WideReceiver" android:exported="true" android:label="Dailies · Wide">
+        <receiver android:name=".WideReceiver" android:exported="true" android:label="Dailies · This week">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_wide" />
         </receiver>
-        <receiver android:name=".LargeReceiver" android:exported="true" android:label="Dailies · Large">
+        <receiver android:name=".LargeReceiver" android:exported="true" android:label="Dailies · Overview">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_large" />
         </receiver>

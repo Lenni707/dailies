@@ -22,9 +22,11 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
 - MainActivity = WebView serving the repo-root web files from assets (copied at build time by the `copyWeb` task) via WebViewAssetLoader.
 - `app.js` detects `window.DailiesAndroid` (JS bridge) and stores progress there instead of the cookie. Same string format.
 - `Store.kt` mirrors the JS encode/decode (width = enough base32 chars for the highest bit). `Games.kt` parses the shared game JSON.
-- Widgets: one GlanceAppWidget with SizeMode.Exact: <100dp tall = 2×1 (count + grid), <200dp wide = small (grid), <240dp tall = wide
-  (today's tiles), else large (list + grid). Grid = GitHub-style weeks-as-columns, square cells sized to fit, max 20 weeks.
-  Glance limit: max 10 children per Row/Column, so the grid uses padding not spacers. Registered 4 times (Tiny/Small/Wide/Large).
+- Widgets: one GlanceAppWidget with SizeMode.Exact, layout picked by real size:
+  <100dp tall = Today (2×1 default: big square per game, tap to play), <200dp wide = Up next (count + play-next button),
+  <240dp tall = This week (count, full-day streak, Mon–Sun squares), else Overview (checklist w/ toggles, week, streaks).
+  Registered 4 times (Tiny/Small/Wide/Large receivers = Today/Up next/This week/Overview in the picker).
+  Glance limit: max 10 children per Row/Column (use padding, not spacers, in repeated cells).
   Colours are resources: Material You system colours on API 31+ (values-v31, values-night-v31), fixed palette before.
   The app also injects the system accent as the page's `--done` colour. Tapping a game goes through OpenGameActivity (marks + opens).
 - CI: `.github/workflows/android.yml` builds on changes to android/ or web files, uploads `dailies.apk` to release tag `android`.
@@ -50,3 +52,4 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
 - 2026-11-17: Android app (WebView + Glance widgets), APK published via GitHub release.
 - 2026-11-17: Year-grid history with tooltips, undo toast; signed APK builds.
 - 2026-11-17: Editable games, widget redesign (heatmap, Material You, 2×1).
+- 2026-11-17: Widgets redesigned around today (2×1 squares default), up next, this week, overview.

@@ -43,6 +43,29 @@ object Store {
         return n
     }
 
+    private fun full(days: Map<Long, Int>, games: List<Game>, day: Long) =
+        games.isNotEmpty() && games.all { has(days, it.bit, day) }
+
+    /** Days in a row where every game was played (today counts once it's complete). */
+    fun fullStreak(days: Map<Long, Int>, games: List<Game>): Int {
+        var d = today()
+        if (!full(days, games, d)) d--
+        var n = 0
+        while (full(days, games, d)) { n++; d-- }
+        return n
+    }
+
+    fun bestFullStreak(days: Map<Long, Int>, games: List<Game>): Int {
+        var best = 0; var run = 0; var prev = Long.MIN_VALUE
+        for (d in days.keys.sorted()) {
+            if (!full(days, games, d)) { run = 0; continue }
+            run = if (d == prev + 1) run + 1 else 1
+            prev = d
+            best = maxOf(best, run)
+        }
+        return best
+    }
+
     @Synchronized
     fun set(ctx: Context, bit: Int, day: Long, on: Boolean) {
         val days = load(ctx).toMutableMap()

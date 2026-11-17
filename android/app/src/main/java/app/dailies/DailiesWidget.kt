@@ -46,6 +46,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import java.time.LocalDate
+import java.util.Locale
 
 class DailiesWidget : GlanceAppWidget() {
     // Exact: LocalSize is the real widget size, so the grid can be sized to fit.
@@ -56,7 +57,7 @@ class DailiesWidget : GlanceAppWidget() {
     }
 }
 
-// Three entries in the widget picker (different default sizes); all render the same widget.
+// Four entries in the widget picker (different default sizes); all render the same widget and adapt to its size.
 open class DailiesReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = DailiesWidget()
 }
@@ -81,6 +82,7 @@ private val Bg = ColorProvider(R.color.w_bg)
 private val Fg = ColorProvider(R.color.w_text)
 private val Muted = ColorProvider(R.color.w_muted)
 private val Done = ColorProvider(R.color.w_done)
+private val OnDone = ColorProvider(R.color.w_on_done)
 private val Heat = listOf(R.color.heat0, R.color.heat1, R.color.heat2, R.color.heat3, R.color.heat4, R.color.heat5)
     .map { ColorProvider(it) }
 
@@ -102,160 +104,162 @@ private val openApp: Action get() = actionStartActivity<MainActivity>()
 @Composable
 private fun Content(days: Map<Long, Int>, games: List<Game>) {
     val size = LocalSize.current
-    val pad = if (size.height < 100.dp) 12.dp else 16.dp
-    val inner = Pair(size.width - pad * 2, size.height - pad * 2)
+    val pad = if (size.height < 100.dp) 10.dp else 16.dp
+    val w = size.width - pad * 2
+    val h = size.height - pad * 2
     Box(
         GlanceModifier.fillMaxSize().appWidgetBackground().cornerRadius(R.dimen.widget_radius)
-            .background(Bg).padding(pad)
+            .background(Bg).padding(pad),
+        contentAlignment = Alignment.Center,
     ) {
         when {
-            size.height < 100.dp -> Tiny(days, games, inner.first, inner.second)
-            size.width < 200.dp -> Small(days, games, inner.first, inner.second)
-            size.height < 240.dp -> Wide(days, games)
-            else -> Large(days, games, inner.first, inner.second)
+            games.isEmpty() -> Text("Add games in the app", style = style(12, Muted))
+            size.height < 100.dp -> Today(days, games, w, h)
+            size.width < 200.dp -> UpNext(days, games)
+            size.height < 240.dp -> ThisWeek(days, games)
+            else -> Overview(days, games)
         }
     }
 }
 
-/** 2×1: today's count and the recent weeks as boxes. */
+/** 2×1: one big square per game for today. Tap a square to play it. */
 @Composable
-private fun Tiny(days: Map<Long, Int>, games: List<Game>, w: Dp, h: Dp) {
-    val done = Store.count(days, games)
-    Row(GlanceModifier.fillMaxSize().clickable(openApp), verticalAlignment = Alignment.CenterVertically) {
-        Column {
-            Text("$done/${games.size}", style = style(20, weight = FontWeight.Medium, mono = true))
-            Text("today", style = style(11, Muted))
-        }
-        Spacer(GlanceModifier.width(12.dp))
-        Heatmap(days, games, w - 60.dp, h, GlanceModifier.defaultWeight())
+private fun Today(days: Map<Long, Int>, games: List<Game>, w: Dp, h: Dp) {
+    val shown = games.take(10)
+    val gap = 8.dp
+    // one row, or two if that makes the squares noticeably bigger
+    fun sizeFor(rows: Int): Dp {
+        val cols = (shown.size + rows - 1) / rows
+        return minOf((h - gap * (rows - 1)) / rows, (w - gap * (cols - 1)) / cols)
     }
-}
-
-/** 2×2: header and as many weeks as fit. */
-@Composable
-private fun Small(days: Map<Long, Int>, games: List<Game>, w: Dp, h: Dp) {
-    Column(GlanceModifier.fillMaxSize().clickable(openApp)) {
-        Header(days, games)
-        Spacer(GlanceModifier.defaultWeight())
-        Heatmap(days, games, w, h - 30.dp, GlanceModifier.fillMaxWidth())
-    }
-}
-
-/** 4×2: today's games as boxes you can tap to open. */
-@Composable
-private fun Wide(days: Map<Long, Int>, games: List<Game>) {
-    Column(GlanceModifier.fillMaxSize()) {
-        Header(days, games)
-        Spacer(GlanceModifier.defaultWeight())
-        Row(GlanceModifier.fillMaxWidth()) {
-            games.take(6).forEach { g ->
-                val on = Store.has(days, g.bit)
-                Column(
-                    GlanceModifier.defaultWeight().clickable(openGame(g)),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Tile(on, 30.dp)
-                    Spacer(GlanceModifier.height(6.dp))
-                    Text(g.name, style = style(11, if (on) Muted else Fg), maxLines = 1)
+    val rows = if (shown.size > 3 && sizeFor(2) > sizeFor(1) * 1.25f) 2 else 1
+    val tile = sizeFor(rows).coerceAtMost(72.dp)
+    val cols = (shown.size + rows - 1) / rows
+    Column(GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically,
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        shown.chunked(cols).forEach { line ->
+            Row {
+                line.forEach { g ->
+                    Box(GlanceModifier.size(tile + gap).padding(gap / 2)) {
+                        Square(g, Store.has(days, g.bit), tile, GlanceModifier.clickable(openGame(g)))
+                    }
                 }
             }
         }
     }
 }
 
-/** 4×4: today's list (tap the box to tick/untick) and the history grid below. */
+/** 2×2: how today is going and a button for the next game. */
 @Composable
-private fun Large(days: Map<Long, Int>, games: List<Game>, w: Dp, h: Dp) {
-    val shown = games.take(6)
-    val rowH = 36.dp
+private fun UpNext(days: Map<Long, Int>, games: List<Game>) {
+    val done = Store.count(days, games)
+    val next = games.firstOrNull { !Store.has(days, it.bit) }
     Column(GlanceModifier.fillMaxSize()) {
-        Header(days, games)
+        Column(GlanceModifier.fillMaxWidth().defaultWeight().clickable(openApp)) {
+            Text("Today", style = style(12, Muted))
+            Text("$done/${games.size}", style = style(34, weight = FontWeight.Medium, mono = true))
+        }
+        val pill = GlanceModifier.fillMaxWidth().height(40.dp).cornerRadius(12.dp)
+        if (next != null) {
+            Box(pill.background(Done).clickable(openGame(next)), contentAlignment = Alignment.Center) {
+                Text("Play ${next.name}", style = style(13, OnDone, FontWeight.Medium), maxLines = 1)
+            }
+        } else {
+            val streak = Store.fullStreak(days, games)
+            Box(pill.background(Heat[0]).clickable(openApp), contentAlignment = Alignment.Center) {
+                Text(if (streak > 1) "All done · $streak days" else "All done", style = style(13, Fg, FontWeight.Medium))
+            }
+        }
+    }
+}
+
+/** 4×2: today's count and streak on the left, Monday–Sunday on the right. */
+@Composable
+private fun ThisWeek(days: Map<Long, Int>, games: List<Game>) {
+    val done = Store.count(days, games)
+    val streak = Store.fullStreak(days, games)
+    Row(GlanceModifier.fillMaxSize().clickable(openApp), verticalAlignment = Alignment.CenterVertically) {
+        Column(GlanceModifier.defaultWeight()) {
+            Text("Today", style = style(12, Muted))
+            Text("$done/${games.size}", style = style(34, weight = FontWeight.Medium, mono = true))
+            Text(if (streak == 1) "1 full day" else "$streak-day streak", style = style(12, Muted))
+        }
+        Week(days, games, 22.dp)
+    }
+}
+
+/** 4×4: today's checklist, this week and streaks. */
+@Composable
+private fun Overview(days: Map<Long, Int>, games: List<Game>) {
+    val shown = games.take(7)
+    Column(GlanceModifier.fillMaxSize()) {
+        Row(GlanceModifier.fillMaxWidth().clickable(openApp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Today", style = style(15, weight = FontWeight.Medium))
+            Spacer(GlanceModifier.defaultWeight())
+            Text("${Store.count(days, games)}/${games.size}", style = style(13, Muted, mono = true))
+        }
         Spacer(GlanceModifier.height(8.dp))
         Column(GlanceModifier.fillMaxWidth()) {
             shown.forEach { g ->
                 val on = Store.has(days, g.bit)
-                val streak = Store.streak(days, g.bit)
                 Row(
-                    GlanceModifier.fillMaxWidth().height(rowH).clickable(openGame(g)),
+                    GlanceModifier.fillMaxWidth().height(34.dp).clickable(openGame(g)),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Tile(
-                        on, 22.dp,
+                    Square(
+                        g, on, 22.dp,
                         GlanceModifier.clickable(actionRunCallback<ToggleAction>(actionParametersOf(BitKey to g.bit))),
+                        letter = false,
                     )
                     Spacer(GlanceModifier.width(12.dp))
-                    Text(
-                        g.name,
-                        modifier = GlanceModifier.defaultWeight(),
-                        style = style(14, if (on) Muted else Fg, FontWeight.Medium),
-                        maxLines = 1,
-                    )
-                    if (streak > 1) Text("${streak}d", style = style(11, Muted, mono = true))
-                    Spacer(GlanceModifier.width(10.dp))
+                    Text(g.name, modifier = GlanceModifier.defaultWeight(),
+                        style = style(14, if (on) Muted else Fg, FontWeight.Medium), maxLines = 1)
                     Image(ImageProvider(R.drawable.ic_arrow), contentDescription = null, modifier = GlanceModifier.size(14.dp))
                 }
             }
         }
         Spacer(GlanceModifier.defaultWeight())
-        val gridH = h - 28.dp - rowH * shown.size - 12.dp
-        if (gridH >= 42.dp) Heatmap(days, games, w, gridH, GlanceModifier.fillMaxWidth().clickable(openApp))
+        Row(GlanceModifier.fillMaxWidth().clickable(openApp), verticalAlignment = Alignment.Bottom) {
+            Column(GlanceModifier.defaultWeight()) {
+                Text("${Store.fullStreak(days, games)}", style = style(22, weight = FontWeight.Medium, mono = true))
+                Text("day streak · best ${Store.bestFullStreak(days, games)}", style = style(11, Muted))
+            }
+            Week(days, games, 18.dp)
+        }
     }
 }
 
+/** A game's square for today: accent with a tick when played, otherwise its first letter. */
 @Composable
-private fun Header(days: Map<Long, Int>, games: List<Game>) {
-    Row(GlanceModifier.fillMaxWidth().clickable(openApp), verticalAlignment = Alignment.CenterVertically) {
-        Text("Dailies", style = style(14, weight = FontWeight.Medium))
-        Spacer(GlanceModifier.defaultWeight())
-        Text("${Store.count(days, games)}/${games.size}", style = style(12, Muted, mono = true))
-    }
-}
-
-/** A rounded square: filled with the accent and a tick when played, empty box otherwise. */
-@Composable
-private fun Tile(on: Boolean, size: Dp, modifier: GlanceModifier = GlanceModifier) {
+private fun Square(g: Game, on: Boolean, size: Dp, modifier: GlanceModifier, letter: Boolean = true) {
     Box(
         modifier.size(size).cornerRadius(size / 4).background(if (on) Done else Heat[0]),
         contentAlignment = Alignment.Center,
     ) {
-        if (on) Image(ImageProvider(R.drawable.ic_tick), contentDescription = "Played", modifier = GlanceModifier.size(size * 0.7f))
+        if (on) Image(ImageProvider(R.drawable.ic_tick), contentDescription = "${g.name}, played",
+            modifier = GlanceModifier.size(size * 0.6f))
+        else if (letter && size >= 20.dp) Text(g.name.take(1).uppercase(),
+            style = style((size.value * 0.4f).toInt().coerceIn(9, 22), Muted, FontWeight.Medium))
     }
 }
 
-/**
- * GitHub-style grid: one column per week (Monday on top), newest on the right,
- * shade = how many of your games you played that day. Square cells, as many weeks as fit.
- */
+/** Monday–Sunday: one square per day shaded by how many games you played, letters underneath. */
 @Composable
-private fun Heatmap(days: Map<Long, Int>, games: List<Game>, w: Dp, h: Dp, modifier: GlanceModifier) {
-    val gap = 3.dp
-    val cell = minOf(h / 7 - gap, 14.dp).coerceAtLeast(4.dp)
-    val weeks = (w / (cell + gap)).toInt().coerceIn(1, 20) // keeps the view count sane
+private fun Week(days: Map<Long, Int>, games: List<Game>, cell: Dp) {
     val today = Store.today()
-    val dow = LocalDate.now().dayOfWeek.value - 1 // Monday = 0
-    val start = today - dow - (weeks - 1) * 7L
-
-    // RemoteViews allow at most 10 children per row/column, so no spacers (padding makes the gaps)
-    // and weeks go in chunks of up to 10.
-    val slot = cell + gap
-    Row(modifier, horizontalAlignment = Alignment.End) {
-        (0 until weeks).chunked(10).forEach { chunk ->
-            Row {
-                chunk.forEach { wk ->
-                    Column {
-                        for (d in 0 until 7) {
-                            val day = start + wk * 7 + d
-                            val shade = if (day > today) null
-                                else Heat[Store.level(Store.count(days, games, day), games.size)]
-                            Box(GlanceModifier.size(slot).padding(gap / 2)) {
-                                Box(
-                                    GlanceModifier.fillMaxSize().cornerRadius(cell / 4)
-                                        .let { if (shade != null) it.background(shade) else it }
-                                ) {}
-                            }
-                        }
-                    }
-                }
+    val monday = today - (LocalDate.now().dayOfWeek.value - 1)
+    Row {
+        for (i in 0 until 7) {
+            val day = monday + i
+            val date = LocalDate.ofEpochDay(day)
+            Column(GlanceModifier.padding(horizontal = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                val shade = if (day > today) Heat[0] else Heat[Store.level(Store.count(days, games, day), games.size)]
+                Box(GlanceModifier.size(cell).cornerRadius(cell / 4).background(shade)) {}
+                Spacer(GlanceModifier.height(4.dp))
+                Text(
+                    date.dayOfWeek.getDisplayName(java.time.format.TextStyle.NARROW, Locale.getDefault()),
+                    style = style(10, if (day == today) Fg else Muted, if (day == today) FontWeight.Bold else FontWeight.Normal),
+                )
             }
         }
     }

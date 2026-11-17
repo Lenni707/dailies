@@ -1,6 +1,6 @@
 <resources>
-    <string name="widget_tiny">Today\'s count and recent weeks</string>
-    <string name="widget_small">Recent weeks at a glance</string>
-    <string name="widget_wide">Today\'s games</string>
-    <string name="widget_large">Today\'s games and your history</string>
+    <string name="widget_tiny">Today\'s games as big squares. Tap one to play.</string>
+    <string name="widget_small">Today\'s count and the next game to play</string>
+    <string name="widget_wide">Today, your streak and this week</string>
+    <string name="widget_large">Today\'s checklist, this week and your streaks</string>
 </resources>
