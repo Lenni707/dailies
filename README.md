@@ -2,7 +2,9 @@
 
 One page for the daily games I play: Wordle, Krillion, Farflung, Plain, Chartered.
 
-Click a game (or press its number) to open it in a new tab. It gets checked off for today. Streaks are stored in your browser.
+Click a game (or press its number) to open it in a new tab. It gets checked off for today. Streaks and history are saved in a cookie (with a localStorage backup). The calendar shows each day; click a day to fix what you played.
+
+On a phone: Share → Add to Home Screen for an app icon.
 
 **Live:** https://lenni707.github.io/dailies/
 

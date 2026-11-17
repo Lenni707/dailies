@@ -2,10 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Dailies</title>
-  <meta name="theme-color" content="#0e0e10">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23e8e6e1'/><circle cx='16' cy='16' r='6' fill='%230e0e10'/></svg>">
+  <meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e0e10" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Dailies">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -30,6 +37,23 @@
       <button class="ghost" id="next">Next unplayed <kbd>N</kbd></button>
       <span class="hint">Keys <kbd>1</kbd>–<kbd id="maxkey">5</kbd> open a game · resets at midnight</span>
     </footer>
+
+    <section class="cal" aria-label="History">
+      <div class="cal-head">
+        <h2 id="month"></h2>
+        <span class="stats" id="monthStats"></span>
+        <div class="nav">
+          <button class="icon" id="prevMonth" aria-label="Previous month"><svg viewBox="0 0 16 16"><path d="M10 4 6 8l4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="icon" id="nextMonth" aria-label="Next month"><svg viewBox="0 0 16 16"><path d="m6 4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+      <div class="weekdays" id="weekdays"></div>
+      <div class="grid" id="grid"></div>
+      <div class="detail">
+        <span id="dayLabel"></span>
+        <div class="chips" id="chips"></div>
+      </div>
+    </section>
   </main>
 
   <template id="row">

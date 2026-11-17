@@ -144,3 +144,88 @@ kbd {
   main { padding-top: 40px; }
   .key, .hint { display: none; }
 }
+
+/* installed app: keep clear of the notch / home bar */
+main {
+  padding-top: calc(72px + env(safe-area-inset-top));
+  padding-bottom: calc(48px + env(safe-area-inset-bottom));
+}
+@media (max-width: 480px) {
+  main { padding-top: calc(40px + env(safe-area-inset-top)); }
+}
+
+/* calendar */
+.cal {
+  margin-top: 40px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+.cal-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.cal-head h2 { font-size: 15px; font-weight: 500; }
+.stats { color: var(--muted); font-size: 12px; font-family: "Geist Mono", monospace; }
+.nav { margin-left: auto; display: flex; gap: 4px; align-self: center; }
+.icon {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.icon svg { width: 14px; height: 14px; }
+.icon:hover { border-color: var(--muted); }
+.icon:disabled { opacity: .35; cursor: default; }
+
+.weekdays, .grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.weekdays span {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding-bottom: 6px;
+}
+.day {
+  height: 40px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: 500 12px "Geist Mono", monospace;
+  color: var(--muted);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.day.some {
+  background: color-mix(in srgb, var(--done) calc(var(--p) * 70%), var(--surface));
+  color: var(--text);
+}
+.day.all { background: var(--done); color: var(--surface); }
+.day.today { border-color: var(--muted); }
+.day.sel { border-color: var(--text); }
+.day:hover:not(:disabled) { border-color: var(--muted); }
+.day:disabled { background: none; opacity: .4; cursor: default; }
+
+.detail {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+#dayLabel { font-size: 13px; color: var(--muted); min-width: 72px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--muted); }
+.chip.on { background: var(--done); border-color: var(--done); color: var(--surface); }
