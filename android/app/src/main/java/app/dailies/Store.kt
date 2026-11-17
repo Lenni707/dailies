@@ -12,11 +12,10 @@ object Store {
     private const val PREFS = "dailies"
     private const val KEY = "data"
     private const val KEEP_DAYS = 400L
-    private val W = (GAMES.maxOf { it.bit } + 1 + 4) / 5
 
     fun today(): Long = LocalDate.now().toEpochDay()
 
-    private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun raw(ctx: Context): String = prefs(ctx).getString(KEY, "") ?: ""
 
@@ -30,7 +29,11 @@ object Store {
     fun has(days: Map<Long, Int>, bit: Int, day: Long = today()) =
         ((days[day] ?: 0) and (1 shl bit)) != 0
 
-    fun count(days: Map<Long, Int>, day: Long = today()) = GAMES.count { has(days, it.bit, day) }
+    fun count(days: Map<Long, Int>, games: List<Game>, day: Long = today()) = games.count { has(days, it.bit, day) }
+
+    /** 0 = nothing, 5 = everything; same steps as the website's history grid. */
+    fun level(count: Int, total: Int): Int =
+        if (count == 0 || total == 0) 0 else maxOf(1, Math.round(count * 5f / total))
 
     fun streak(days: Map<Long, Int>, bit: Int): Int {
         var d = today()
@@ -57,9 +60,11 @@ object Store {
         if (keys.isEmpty()) return ""
         val end = keys.max()
         val start = maxOf(keys.min(), end - KEEP_DAYS)
+        val bits = 32 - Integer.numberOfLeadingZeros(keys.maxOf { days[it] ?: 0 })
+        val w = maxOf(1, (bits + 4) / 5)
         val sb = StringBuilder()
-        for (d in start..end) sb.append(Integer.toString(days[d] ?: 0, 32).padStart(W, '0'))
-        return "2.${java.lang.Long.toString(start, 36)}.$W.$sb"
+        for (d in start..end) sb.append(Integer.toString(days[d] ?: 0, 32).padStart(w, '0'))
+        return "2.${java.lang.Long.toString(start, 36)}.$w.$sb"
     }
 
     fun decode(s: String): Map<Long, Int> {

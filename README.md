@@ -10,7 +10,7 @@ On a phone: Share → Add to Home Screen for an app icon.
 
 ## Android app
 
-Download [dailies.apk](https://github.com/Lenni707/dailies/releases/download/android/dailies.apk), open it on the phone and allow installing from your browser. Long-press the home screen → Widgets → Dailies to add the small, wide or large widget.
+Download [dailies.apk](https://github.com/Lenni707/dailies/releases/download/android/dailies.apk), open it on the phone and allow installing from your browser. Long-press the home screen → Widgets → Dailies to add the 2×1, small, wide or large widget.
 
 Signing secrets for CI (run once, from `android/`):
 
@@ -33,4 +33,4 @@ python3 -m http.server 8080
 
 ## Add a game
 
-Edit the `GAMES` list at the top of `app.js`.
+Use **Edit games** under the list (works on the website and in the app). The built-in defaults are `DEFAULT_GAMES` in `app.js`.

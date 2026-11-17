@@ -32,9 +32,16 @@
     </header>
 
     <ol class="games" id="games"></ol>
+    <div class="empty" id="empty" hidden>
+      <p>No games yet.</p>
+      <button class="ghost" id="emptyAdd">Add a game</button>
+    </div>
 
     <footer>
-      <button class="ghost" id="next">Next unplayed <kbd>N</kbd></button>
+      <div class="actions">
+        <button class="ghost" id="next">Next unplayed <kbd>N</kbd></button>
+        <button class="ghost" id="edit">Edit games</button>
+      </div>
       <a class="ghost" id="android" hidden href="https://github.com/Lenni707/dailies/releases/download/android/dailies.apk">Android app</a>
       <span class="hint">Keys <kbd>1</kbd>–<kbd id="maxkey">5</kbd> open a game · resets at midnight</span>
     </footer>
@@ -61,6 +68,24 @@
         <div class="chips" id="chips"></div>
       </div>
     </section>
+
+    <dialog class="editor" id="editor" aria-labelledby="editorTitle">
+      <div class="editor-head">
+        <h2 id="editorTitle">Games</h2>
+        <button class="icon" id="closeEditor" aria-label="Close"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+      </div>
+      <ul class="edit-list" id="editList"></ul>
+      <form id="addForm" class="add-form" autocomplete="off">
+        <h3>Add a game</h3>
+        <input name="name" placeholder="Name" required maxlength="40">
+        <input name="url" placeholder="Link, e.g. nytimes.com/games/connections" required inputmode="url" maxlength="300">
+        <input name="blurb" placeholder="Short description (optional)" maxlength="60">
+        <div class="form-row">
+          <span class="note" id="formNote"></span>
+          <button class="primary" type="submit">Add</button>
+        </div>
+      </form>
+    </dialog>
 
     <div class="tip" id="tip" role="tooltip" hidden></div>
     <div class="toast" id="toast" role="status" hidden>

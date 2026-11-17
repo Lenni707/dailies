@@ -14,7 +14,7 @@ class OpenGameActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val bit = intent.data?.lastPathSegment?.toIntOrNull()
-        val game = GAMES.firstOrNull { it.bit == bit }
+        val game = Games.load(this).firstOrNull { it.bit == bit }
         if (game != null) {
             Store.set(this, game.bit, Store.today(), true)
             try {

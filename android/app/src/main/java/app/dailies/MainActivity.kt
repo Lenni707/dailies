@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
@@ -64,6 +65,8 @@ class MainActivity : Activity() {
                 openExternal(request.url)
                 return true
             }
+
+            override fun onPageFinished(view: WebView, url: String) = applyAccent()
         }
         web.addJavascriptInterface(Bridge(), "DailiesAndroid")
         web.loadUrl("https://${WebViewAssetLoader.DEFAULT_DOMAIN}/assets/index.html")
@@ -81,6 +84,16 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
+    // Use the phone's Material You accent for the page's green (Android 12+).
+    private fun applyAccent() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
+        val c = getColor(if (night) android.R.color.system_accent1_200 else android.R.color.system_accent1_600)
+        val hex = String.format("#%06X", c and 0xFFFFFF)
+        web.evaluateJavascript("document.documentElement.style.setProperty('--done','$hex')", null)
+    }
+
     private fun openExternal(uri: Uri) {
         if (uri.scheme != "https" && uri.scheme != "http") return
         try {
@@ -96,6 +109,15 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun save(value: String) {
             Store.setRaw(applicationContext, value)
+            scope.launch { DailiesWidget().updateAll(applicationContext) }
+        }
+
+        @JavascriptInterface
+        fun loadGames(): String = Games.raw(applicationContext)
+
+        @JavascriptInterface
+        fun saveGames(value: String) {
+            Games.setRaw(applicationContext, value)
             scope.launch { DailiesWidget().updateAll(applicationContext) }
         }
 

@@ -1,12 +1,13 @@
-// Edit this list to add or remove games.
-// `bit` is the game's permanent slot in saved data: never reuse or renumber one.
-const GAMES = [
+// Default games. Your own list (added/removed in the app) is saved separately and wins.
+// `bit` is a game's permanent slot in saved progress: never reuse or renumber one.
+const DEFAULT_GAMES = [
   { bit: 0, name: "Wordle",    blurb: "Five letters, six tries",       url: "https://www.nytimes.com/games/wordle/index.html" },
   { bit: 1, name: "Krillion",  blurb: "Rare answers score deeper",     url: "https://krillion.io" },
   { bit: 2, name: "Farflung",  blurb: "Find the place from map clues", url: "https://farflung.game" },
   { bit: 3, name: "Plain",     blurb: "Estimate the number",           url: "https://playplain.app" },
   { bit: 4, name: "Chartered", blurb: "Pin the place, guess the year", url: "https://playchartered.com" },
 ];
+const MAX_BITS = 30; // progress is a 31-bit mask per day
 
 /* ---------- dates ---------- */
 // Day number = days since 1970-01-01 in local time (DST-safe).
@@ -23,13 +24,14 @@ const NATIVE = window.DailiesAndroid;
 const COOKIE = "dailies";
 const LS = "dailies:v2";
 const KEEP_DAYS = 400; // browsers cap cookie lifetime at 400 days anyway
-const W = Math.ceil((Math.max(...GAMES.map((g) => g.bit)) + 1) / 5);
 
 function encode(days) {
   const keys = [...days.keys()].filter((k) => days.get(k));
   if (!keys.length) return "";
   const end = Math.max(...keys);
   const start = Math.max(Math.min(...keys), end - KEEP_DAYS);
+  const bits = 32 - Math.clz32(Math.max(...keys.map((k) => days.get(k))));
+  const W = Math.max(1, Math.ceil(bits / 5));
   let s = "";
   for (let d = start; d <= end; d++) s += (days.get(d) || 0).toString(32).padStart(W, "0");
   return `2.${start.toString(36)}.${W}.${s}`;
@@ -47,16 +49,48 @@ function decode(str) {
   return days;
 }
 
-function readCookie() {
-  const m = document.cookie.match(new RegExp(`(?:^|; )${COOKIE}=([^;]*)`));
+function readCookie(name = COOKIE) {
+  const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
   return m ? decodeURIComponent(m[1]) : "";
 }
 
-function writeCookie(val) {
+function writeCookie(val, name = COOKIE) {
   const path = location.pathname.replace(/[^/]*$/, "") || "/";
   const secure = location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `${COOKIE}=${encodeURIComponent(val)}; Max-Age=${KEEP_DAYS * 86400}; Path=${path}; SameSite=Lax${secure}`;
+  document.cookie = `${name}=${encodeURIComponent(val)}; Max-Age=${KEEP_DAYS * 86400}; Path=${path}; SameSite=Lax${secure}`;
 }
+
+/* ---------- game list ----------
+   { next: <next free bit>, games: [{ bit, name, url, blurb }] }
+   Web: cookie "dailies_games" (base64 JSON) + localStorage backup. App: stored natively, shared with widgets. */
+const GAMES_COOKIE = "dailies_games";
+const GAMES_LS = "dailies:games";
+const b64 = (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str)));
+const unb64 = (str) => new TextDecoder().decode(Uint8Array.from(atob(str), (c) => c.charCodeAt(0)));
+
+function loadGames() {
+  let raw = "";
+  if (NATIVE) raw = NATIVE.loadGames();
+  else {
+    try { raw = unb64(readCookie(GAMES_COOKIE)); } catch {}
+    if (!raw) try { raw = localStorage.getItem(GAMES_LS) || ""; } catch {}
+  }
+  try {
+    const cfg = JSON.parse(raw);
+    if (Array.isArray(cfg.games)) return cfg;
+  } catch {}
+  return { next: DEFAULT_GAMES.length, games: DEFAULT_GAMES.map((g) => ({ ...g })) };
+}
+
+function saveGames() {
+  const json = JSON.stringify(cfg);
+  if (NATIVE) { NATIVE.saveGames(json); return; }
+  writeCookie(b64(json), GAMES_COOKIE);
+  try { localStorage.setItem(GAMES_LS, json); } catch {}
+}
+
+let cfg = loadGames();
+let GAMES = cfg.games;
 
 function load() {
   if (NATIVE) return decode(NATIVE.load());
@@ -123,15 +157,16 @@ const $ = (id) => document.getElementById(id);
 const list = $("games");
 
 function buildList() {
+  list.innerHTML = "";
   const tpl = $("row");
   GAMES.forEach((g, i) => {
     const li = tpl.content.firstElementChild.cloneNode(true);
     li.dataset.bit = g.bit;
     const a = li.querySelector(".open");
     a.href = g.url;
-    li.querySelector(".key").textContent = i + 1;
+    li.querySelector(".key").textContent = i < 9 ? i + 1 : "";
     li.querySelector(".name").textContent = g.name;
-    li.querySelector(".blurb").textContent = g.blurb;
+    li.querySelector(".blurb").textContent = g.blurb || hostOf(g.url);
     li.querySelector(".check").addEventListener("click", () => toggle(g.bit));
     a.addEventListener("click", (e) => {
       if (NATIVE) { e.preventDefault(); openGame(g); return; }
@@ -141,8 +176,11 @@ function buildList() {
     });
     list.appendChild(li);
   });
-  $("maxkey").textContent = GAMES.length;
+  $("maxkey").textContent = Math.min(9, GAMES.length);
+  $("empty").hidden = GAMES.length > 0;
 }
+
+const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
 
 function renderList() {
   let done = 0;
@@ -158,7 +196,7 @@ function renderList() {
     li.querySelector(".streak").textContent = s > 1 ? `${s}d` : "";
   }
   $("count").textContent = `${done}/${GAMES.length}`;
-  $("fill").style.width = `${(done / GAMES.length) * 100}%`;
+  $("fill").style.width = `${GAMES.length ? (done / GAMES.length) * 100 : 0}%`;
   $("next").disabled = done === GAMES.length;
   $("date").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 }
@@ -170,7 +208,7 @@ let selected = today();
 
 const fmtDay = (n, opts = { weekday: "short", month: "short", day: "numeric" }) =>
   fromDayNum(n).toLocaleDateString(undefined, opts);
-const level = (c) => (c === 0 ? 0 : Math.max(1, Math.round((c / GAMES.length) * 5)));
+const level = (c) => (c === 0 ? 0 : Math.max(1, Math.round((c / Math.max(1, GAMES.length)) * 5)));
 
 function renderCal() {
   const t = today();
@@ -205,7 +243,7 @@ function renderCal() {
       if (n > t) { cell.classList.add("future"); cell.tabIndex = -1; grid.appendChild(cell); continue; }
       const c = countOn(n);
       total += c;
-      if (c === GAMES.length) full++;
+      if (c && c === GAMES.length) full++;
       cell.dataset.day = n;
       cell.dataset.l = level(c);
       cell.setAttribute("aria-label", `${fmtDay(n)}: ${c} of ${GAMES.length}`);
@@ -296,6 +334,73 @@ function toastPlayed(g) {
   else arm();
 }
 
+/* ---------- game editor ---------- */
+const editor = $("editor");
+
+function renderEditor() {
+  const ul = $("editList");
+  ul.innerHTML = "";
+  GAMES.forEach((g, i) => {
+    const li = document.createElement("li");
+    const text = document.createElement("div");
+    text.className = "edit-text";
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = g.name;
+    const host = document.createElement("span");
+    host.className = "blurb";
+    host.textContent = hostOf(g.url);
+    text.append(name, host);
+
+    const up = document.createElement("button");
+    up.className = "icon";
+    up.ariaLabel = `Move ${g.name} up`;
+    up.disabled = i === 0;
+    up.innerHTML = '<svg viewBox="0 0 16 16"><path d="M4 10l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    up.onclick = () => { [GAMES[i - 1], GAMES[i]] = [GAMES[i], GAMES[i - 1]]; gamesChanged(); };
+
+    const del = document.createElement("button");
+    del.className = "remove";
+    del.textContent = "Remove";
+    del.onclick = () => {
+      if (!del.classList.contains("armed")) { del.classList.add("armed"); del.textContent = "Sure?"; return; }
+      GAMES.splice(i, 1);
+      gamesChanged();
+    };
+    li.append(text, up, del);
+    ul.appendChild(li);
+  });
+  const full = cfg.next >= MAX_BITS;
+  $("addForm").querySelector("button").disabled = full;
+  $("formNote").textContent = full ? "That's the maximum number of games." : "";
+}
+
+function gamesChanged() {
+  saveGames();
+  buildList();
+  render();
+  renderEditor();
+}
+
+$("addForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const name = f.name.value.trim();
+  let url = f.url.value.trim();
+  if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+  try { new URL(url); } catch { $("formNote").textContent = "That link doesn't look right."; return; }
+  if (!name || cfg.next >= MAX_BITS) return;
+  GAMES.push({ bit: cfg.next++, name, url, blurb: f.blurb.value.trim() });
+  f.reset();
+  gamesChanged();
+  f.name.focus();
+});
+
+$("edit").addEventListener("click", () => { renderEditor(); editor.showModal(); });
+$("emptyAdd").addEventListener("click", () => { renderEditor(); editor.showModal(); });
+$("closeEditor").addEventListener("click", () => editor.close());
+editor.addEventListener("click", (e) => { if (e.target === editor) editor.close(); });
+
 /* ---------- glue ---------- */
 function render() { renderList(); renderCal(); }
 
@@ -314,8 +419,9 @@ $("next").addEventListener("click", () => {
 
 document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target.closest("input, dialog")) return;
   const n = parseInt(e.key, 10);
-  if (n >= 1 && n <= GAMES.length) openGame(GAMES[n - 1]);
+  if (n >= 1 && n <= Math.min(9, GAMES.length)) openGame(GAMES[n - 1]);
   else if (e.key.toLowerCase() === "n") $("next").click();
 });
 
@@ -323,6 +429,8 @@ document.addEventListener("keydown", (e) => {
 let lastDay = today();
 function refresh() {
   days = load();
+  const fresh = loadGames();
+  if (JSON.stringify(fresh) !== JSON.stringify(cfg)) { cfg = fresh; GAMES = cfg.games; buildList(); }
   if (today() !== lastDay) {
     if (selected === lastDay) selected = today();
     lastDay = today();

@@ -4,7 +4,9 @@
 Static launcher page for daily browser games. No build step: `index.html`, `style.css`, `app.js`.
 
 ## Architecture / rules
-- Games are listed in `GAMES` in `app.js` (id, name, blurb, url).
+- Default games: `DEFAULT_GAMES` in `app.js` (+ `DEFAULT_GAMES` in android Games.kt). The user's own list is edited in-page
+  ("Edit games") and stored as JSON `{next, games:[{bit,name,url,blurb}]}`: web cookie `dailies_games` (base64) + localStorage
+  `dailies:games`; in the app via the JS bridge (SharedPreferences key `games`, read by the widgets). New games get bit `next++` (max 30).
 - State: map of day number (days since 1970-01-01, local date) -> bitmask of games played. Each game has a permanent `bit`.
   Saved to cookie `dailies` (primary, Max-Age 400d, SameSite=Lax, Secure on https) and localStorage `dailies:v2` (backup); merged on load.
   Encoding: `2.<startDay base36>.<width>.<base32 chars per day>`, ~400 bytes/year. v1 localStorage data is migrated automatically.
@@ -19,9 +21,12 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
 - Kotlin, minSdk 26, AGP 8.7.3 / Kotlin 2.1.0 / Gradle 8.11.1, Glance 1.1.1. No local SDK on this Mac; CI builds it.
 - MainActivity = WebView serving the repo-root web files from assets (copied at build time by the `copyWeb` task) via WebViewAssetLoader.
 - `app.js` detects `window.DailiesAndroid` (JS bridge) and stores progress there instead of the cookie. Same string format.
-- `Store.kt` mirrors the JS encode/decode; `Games.kt` duplicates the GAMES list: keep both in sync with `app.js`.
-- Widgets: one responsive GlanceAppWidget (small <250dp wide, wide <290dp tall, large otherwise), registered 3 times
-  (Small/Wide/Large receivers) so the picker shows three sizes. Tapping a game goes through OpenGameActivity (marks + opens).
+- `Store.kt` mirrors the JS encode/decode (width = enough base32 chars for the highest bit). `Games.kt` parses the shared game JSON.
+- Widgets: one GlanceAppWidget with SizeMode.Exact: <100dp tall = 2×1 (count + grid), <200dp wide = small (grid), <240dp tall = wide
+  (today's tiles), else large (list + grid). Grid = GitHub-style weeks-as-columns, square cells sized to fit, max 20 weeks.
+  Glance limit: max 10 children per Row/Column, so the grid uses padding not spacers. Registered 4 times (Tiny/Small/Wide/Large).
+  Colours are resources: Material You system colours on API 31+ (values-v31, values-night-v31), fixed palette before.
+  The app also injects the system accent as the page's `--done` colour. Tapping a game goes through OpenGameActivity (marks + opens).
 - CI: `.github/workflows/android.yml` builds on changes to android/ or web files, uploads `dailies.apk` to release tag `android`.
   Download: https://github.com/Lenni707/dailies/releases/download/android/dailies.apk
 - Signing: `android/release.p12` + `android/release.pass` (gitignored, local only, BACK THEM UP). CI reads secrets
@@ -33,6 +38,7 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
 - [x] Dockerfile
 - [x] GitHub Pages deploy
 - [x] Cookie storage + history (GitHub-style 53-week grid, hover tooltip lists games, click a day to edit)
+- [x] Editable game list (web + app), Material You widgets with heatmap grid, 2×1 widget
 - [x] Undo toast after opening a game; circles and day chips untick
 - [x] Android app + 3 widgets (built in CI)
 - [x] Signing secrets added to GitHub (release builds signed with android/release.p12)
@@ -43,3 +49,4 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
 - 2026-11-17: Cookie storage, calendar tracker, app icon/manifest.
 - 2026-11-17: Android app (WebView + Glance widgets), APK published via GitHub release.
 - 2026-11-17: Year-grid history with tooltips, undo toast; signed APK builds.
+- 2026-11-17: Editable games, widget redesign (heatmap, Material You, 2×1).
