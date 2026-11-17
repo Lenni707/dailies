@@ -49,3 +49,7 @@ jobs:
           gh release view android >/dev/null 2>&1 || \
             gh release create android --title "Android app" --notes "Latest build of the Dailies Android app. Download dailies.apk and open it on your phone to install." --latest
           gh release upload android dailies.apk --clobber
+          gh release edit android --title "Android app · build ${{ github.run_number }}" \
+            --notes "Build ${{ github.run_number }} · $(date -u '+%Y-%m-%d %H:%M UTC') · ${GITHUB_SHA::7}
+
+          Download dailies.apk and open it on your phone to install or update."
