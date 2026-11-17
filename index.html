@@ -41,20 +41,32 @@
 
     <section class="cal" aria-label="History">
       <div class="cal-head">
-        <h2 id="month"></h2>
-        <span class="stats" id="monthStats"></span>
-        <div class="nav">
-          <button class="icon" id="prevMonth" aria-label="Previous month"><svg viewBox="0 0 16 16"><path d="M10 4 6 8l4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button class="icon" id="nextMonth" aria-label="Next month"><svg viewBox="0 0 16 16"><path d="m6 4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2>History</h2>
+        <span class="stats" id="calStats"></span>
+      </div>
+      <div class="cal-body">
+        <div class="daynames"><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span></span></div>
+        <div class="scroller" id="scroller">
+          <div class="months" id="months"></div>
+          <div class="grid" id="grid"></div>
         </div>
       </div>
-      <div class="weekdays" id="weekdays"></div>
-      <div class="grid" id="grid"></div>
+      <div class="legend">
+        <span>Less</span>
+        <i data-l="0"></i><i data-l="1"></i><i data-l="2"></i><i data-l="3"></i><i data-l="4"></i><i data-l="5"></i>
+        <span>More</span>
+      </div>
       <div class="detail">
         <span id="dayLabel"></span>
         <div class="chips" id="chips"></div>
       </div>
     </section>
+
+    <div class="tip" id="tip" role="tooltip" hidden></div>
+    <div class="toast" id="toast" role="status" hidden>
+      <span id="toastText"></span>
+      <button id="undo">Undo</button>
+    </div>
   </main>
 
   <template id="row">

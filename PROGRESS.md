@@ -32,12 +32,14 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
 - [x] Light/dark via system preference
 - [x] Dockerfile
 - [x] GitHub Pages deploy
-- [x] Cookie storage + month calendar (click a day to backfill)
+- [x] Cookie storage + history (GitHub-style 53-week grid, hover tooltip lists games, click a day to edit)
+- [x] Undo toast after opening a game; circles and day chips untick
 - [x] Android app + 3 widgets (built in CI)
-- [ ] Signing secrets added to GitHub (user must run the commands in README)
+- [x] Signing secrets added to GitHub (release builds signed with android/release.p12)
 - [x] Home-screen icon + web manifest (icons/icon.svg is the source; PNGs rendered with headless Chrome + sips)
 
 ## Log
 - 2026-11-17: Initial version.
 - 2026-11-17: Cookie storage, calendar tracker, app icon/manifest.
 - 2026-11-17: Android app (WebView + Glance widgets), APK published via GitHub release.
+- 2026-11-17: Year-grid history with tooltips, undo toast; signed APK builds.

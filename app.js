@@ -133,7 +133,12 @@ function buildList() {
     li.querySelector(".name").textContent = g.name;
     li.querySelector(".blurb").textContent = g.blurb;
     li.querySelector(".check").addEventListener("click", () => toggle(g.bit));
-    a.addEventListener("click", () => set(g.bit, today(), true));
+    a.addEventListener("click", (e) => {
+      if (NATIVE) { e.preventDefault(); openGame(g); return; }
+      const was = has(g.bit);
+      set(g.bit, today(), true);
+      if (!was) toastPlayed(g);
+    });
     list.appendChild(li);
   });
   $("maxkey").textContent = GAMES.length;
@@ -146,7 +151,9 @@ function renderList() {
     const d = has(bit);
     if (d) done++;
     li.classList.toggle("done", d);
-    li.querySelector(".check").setAttribute("aria-pressed", d);
+    const chk = li.querySelector(".check");
+    chk.setAttribute("aria-pressed", d);
+    chk.title = chk.ariaLabel = d ? "Mark as not played" : "Mark as played";
     const s = streak(bit);
     li.querySelector(".streak").textContent = s > 1 ? `${s}d` : "";
   }
@@ -156,74 +163,138 @@ function renderList() {
   $("date").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 }
 
-/* ---------- calendar ---------- */
-let view = (() => { const t = new Date(); return { y: t.getFullYear(), m: t.getMonth() }; })();
+/* ---------- calendar (year grid: weeks are columns, Monday on top) ---------- */
+const WEEKS = 53;
+const weekStart = 1; // Monday
 let selected = today();
 
-const weekStart = 1; // Monday
-
-function buildWeekdays() {
-  const base = new Date(2024, 0, 1); // a Monday
-  $("weekdays").innerHTML = "";
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(base); d.setDate(1 + ((i + weekStart - 1 + 7) % 7));
-    const s = document.createElement("span");
-    s.textContent = d.toLocaleDateString(undefined, { weekday: "narrow" });
-    $("weekdays").appendChild(s);
-  }
-}
+const fmtDay = (n, opts = { weekday: "short", month: "short", day: "numeric" }) =>
+  fromDayNum(n).toLocaleDateString(undefined, opts);
+const level = (c) => (c === 0 ? 0 : Math.max(1, Math.round((c / GAMES.length) * 5)));
 
 function renderCal() {
-  const first = new Date(view.y, view.m, 1);
-  $("month").textContent = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const t = today();
-  const now = new Date();
-  $("nextMonth").disabled = view.y * 12 + view.m >= now.getFullYear() * 12 + now.getMonth();
+  const dow = (fromDayNum(t).getDay() - weekStart + 7) % 7;
+  const start = t - dow - (WEEKS - 1) * 7;
 
   const grid = $("grid");
+  const months = $("months");
+  const scroller = $("scroller");
+  const keepScroll = grid.childElementCount ? scroller.scrollLeft : null;
   grid.innerHTML = "";
-  const lead = (first.getDay() - weekStart + 7) % 7;
-  for (let i = 0; i < lead; i++) grid.appendChild(document.createElement("span"));
+  months.innerHTML = "";
 
-  const len = new Date(view.y, view.m + 1, 0).getDate();
-  let monthTotal = 0, perfect = 0;
-  for (let i = 1; i <= len; i++) {
-    const n = dayNum(new Date(view.y, view.m, i));
-    const c = countOn(n);
-    monthTotal += c;
-    if (c === GAMES.length) perfect++;
-    const b = document.createElement("button");
-    b.className = "day";
-    b.textContent = i;
-    b.style.setProperty("--p", c / GAMES.length);
-    if (c) b.classList.add("some");
-    if (c === GAMES.length) b.classList.add("all");
-    if (n === t) b.classList.add("today");
-    if (n === selected) b.classList.add("sel");
-    if (n > t) b.disabled = true;
-    b.setAttribute("aria-label", `${new Date(view.y, view.m, i).toDateString()}: ${c} of ${GAMES.length}`);
-    b.addEventListener("click", () => { selected = n; render(); });
-    grid.appendChild(b);
+  let total = 0, full = 0;
+  for (let w = 0; w < WEEKS; w++) {
+    // month label over the week that holds the 1st (week 0 gets one if a month starts later than week 2)
+    const label = document.createElement("span");
+    for (let i = 0; i < 7; i++) {
+      const n = start + w * 7 + i;
+      const d = fromDayNum(n);
+      if ((d.getDate() === 1 && n <= t) || (w === 0 && i === 0 && d.getDate() < 15)) {
+        label.textContent = d.toLocaleDateString(undefined, { month: "short" });
+        break;
+      }
+    }
+    months.appendChild(label);
+
+    for (let i = 0; i < 7; i++) {
+      const n = start + w * 7 + i;
+      const cell = document.createElement("button");
+      cell.className = "cell";
+      if (n > t) { cell.classList.add("future"); cell.tabIndex = -1; grid.appendChild(cell); continue; }
+      const c = countOn(n);
+      total += c;
+      if (c === GAMES.length) full++;
+      cell.dataset.day = n;
+      cell.dataset.l = level(c);
+      cell.setAttribute("aria-label", `${fmtDay(n)}: ${c} of ${GAMES.length}`);
+      if (n === t) cell.classList.add("today");
+      if (n === selected) cell.classList.add("sel");
+      grid.appendChild(cell);
+    }
   }
-  $("monthStats").textContent = monthTotal ? `${monthTotal} played · ${perfect} full ${perfect === 1 ? "day" : "days"}` : "";
+  $("calStats").textContent = `${total} ${total === 1 ? "game" : "games"} · ${full} full ${full === 1 ? "day" : "days"} this year`;
+  scroller.scrollLeft = keepScroll ?? scroller.scrollWidth;
 
-  // selected day detail
-  const sd = fromDayNum(selected);
-  $("dayLabel").textContent = selected === t ? "Today" : sd.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  // selected day: edit what was played
+  $("dayLabel").textContent = selected === t ? "Today" : fmtDay(selected);
   const chips = $("chips");
   chips.innerHTML = "";
   for (const g of GAMES) {
+    const on = has(g.bit, selected);
     const c = document.createElement("button");
-    c.className = "chip" + (has(g.bit, selected) ? " on" : "");
+    c.className = "chip" + (on ? " on" : "");
     c.textContent = g.name;
-    c.setAttribute("aria-pressed", has(g.bit, selected));
+    c.setAttribute("aria-pressed", on);
+    c.title = on ? "Mark as not played" : "Mark as played";
     c.addEventListener("click", () => toggle(g.bit, selected));
     chips.appendChild(c);
   }
 }
 
-$("prevMonth").addEventListener("click", () => { view.m--; if (view.m < 0) { view.m = 11; view.y--; } renderCal(); });
-$("nextMonth").addEventListener("click", () => { view.m++; if (view.m > 11) { view.m = 0; view.y++; } renderCal(); });
+/* tooltip */
+const tip = $("tip");
+function showTip(cell) {
+  const n = +cell.dataset.day;
+  const c = countOn(n);
+  tip.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "tip-head";
+  head.textContent = `${fmtDay(n, { weekday: "long", month: "short", day: "numeric" })} · ${c}/${GAMES.length}`;
+  tip.appendChild(head);
+  for (const g of GAMES) {
+    const row = document.createElement("div");
+    row.className = "tip-row" + (has(g.bit, n) ? " on" : "");
+    row.textContent = g.name;
+    tip.appendChild(row);
+  }
+  tip.hidden = false;
+  const r = cell.getBoundingClientRect();
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = r.left + r.width / 2 - w / 2;
+  x = Math.max(8, Math.min(x, innerWidth - w - 8));
+  let y = r.top - h - 8;
+  if (y < 8) y = r.bottom + 8;
+  tip.style.left = `${x}px`;
+  tip.style.top = `${y}px`;
+}
+const hideTip = () => { tip.hidden = true; };
+
+$("grid").addEventListener("mouseover", (e) => {
+  const cell = e.target.closest(".cell[data-day]");
+  if (cell) showTip(cell);
+});
+$("grid").addEventListener("mouseleave", hideTip);
+$("grid").addEventListener("click", (e) => {
+  const cell = e.target.closest(".cell[data-day]");
+  if (!cell) return;
+  selected = +cell.dataset.day;
+  render();
+  const again = $("grid").querySelector(`[data-day="${selected}"]`);
+  if (again) showTip(again); // keeps the tooltip on touch screens
+});
+$("scroller").addEventListener("scroll", hideTip, { passive: true });
+addEventListener("scroll", hideTip, { passive: true });
+document.addEventListener("click", (e) => { if (!e.target.closest(".cell")) hideTip(); });
+
+/* toast with undo after opening a game */
+let toastTimer;
+function toastPlayed(g) {
+  const el = $("toast");
+  $("toastText").textContent = `${g.name} marked as played`;
+  el.hidden = false;
+  el.onclick = (e) => {
+    if (e.target.id !== "undo") return;
+    set(g.bit, today(), false);
+    el.hidden = true;
+  };
+  clearTimeout(toastTimer);
+  // the game opens in another tab, so start the countdown once you're back
+  const arm = () => { toastTimer = setTimeout(() => (el.hidden = true), 6000); };
+  if (document.hidden) document.addEventListener("visibilitychange", arm, { once: true });
+  else arm();
+}
 
 /* ---------- glue ---------- */
 function render() { renderList(); renderCal(); }
@@ -231,7 +302,9 @@ function render() { renderList(); renderCal(); }
 function openGame(g) {
   if (NATIVE) NATIVE.open(g.url);
   else window.open(g.url, "_blank", "noopener");
+  const was = has(g.bit);
   set(g.bit, today(), true);
+  if (!was) toastPlayed(g);
 }
 
 $("next").addEventListener("click", () => {
@@ -253,7 +326,6 @@ function refresh() {
   if (today() !== lastDay) {
     if (selected === lastDay) selected = today();
     lastDay = today();
-    const t = new Date(); view = { y: t.getFullYear(), m: t.getMonth() };
   }
   render();
 }
@@ -266,5 +338,4 @@ if (!NATIVE && /Android/i.test(navigator.userAgent)) $("android").hidden = false
 if (NATIVE) document.documentElement.classList.add("native");
 
 buildList();
-buildWeekdays();
 render();

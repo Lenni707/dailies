@@ -20,7 +20,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: mkdir _site && cp -R index.html style.css app.js manifest.webmanifest icons _site/
       - uses: actions/upload-pages-artifact@v3
       - id: deployment
