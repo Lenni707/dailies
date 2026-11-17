@@ -104,12 +104,14 @@ private val openApp: Action get() = actionStartActivity<MainActivity>()
 @Composable
 private fun Content(days: Map<Long, Int>, games: List<Game>) {
     val size = LocalSize.current
-    val pad = if (size.height < 100.dp) 10.dp else 16.dp
-    val w = size.width - pad * 2
-    val h = size.height - pad * 2
+    val tiny = size.height < 100.dp
+    val padH = if (tiny) 12.dp else 16.dp
+    val padV = if (tiny) 8.dp else 16.dp
+    val w = size.width - padH * 2
+    val h = size.height - padV * 2
     Box(
         GlanceModifier.fillMaxSize().appWidgetBackground().cornerRadius(R.dimen.widget_radius)
-            .background(Bg).padding(pad),
+            .background(Bg).padding(horizontal = padH, vertical = padV),
         contentAlignment = Alignment.Center,
     ) {
         when {
@@ -122,27 +124,29 @@ private fun Content(days: Map<Long, Int>, games: List<Game>) {
     }
 }
 
-/** 2×1: one big square per game for today. Tap a square to play it. */
+/** 2×1: "Dailies" + today's count on top, one square per game below. Tap a square to play it. */
 @Composable
 private fun Today(days: Map<Long, Int>, games: List<Game>, w: Dp, h: Dp) {
     val shown = games.take(10)
-    val gap = 8.dp
-    // one row, or two if that makes the squares noticeably bigger
-    fun sizeFor(rows: Int): Dp {
-        val cols = (shown.size + rows - 1) / rows
-        return minOf((h - gap * (rows - 1)) / rows, (w - gap * (cols - 1)) / cols)
-    }
-    val rows = if (shown.size > 3 && sizeFor(2) > sizeFor(1) * 1.25f) 2 else 1
-    val tile = sizeFor(rows).coerceAtMost(72.dp)
-    val cols = (shown.size + rows - 1) / rows
-    Column(GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically,
-        horizontalAlignment = Alignment.CenterHorizontally) {
-        shown.chunked(cols).forEach { line ->
-            Row {
-                line.forEach { g ->
-                    Box(GlanceModifier.size(tile + gap).padding(gap / 2)) {
-                        Square(g, Store.has(days, g.bit), tile, GlanceModifier.clickable(openGame(g)))
-                    }
+    val gap = 6.dp
+    val titleH = 16.dp
+    val spacer = 6.dp
+    // Each game gets an equal slot of the width; the square is the slot minus the gap,
+    // capped by the height left under the title. 1dp of slack so rounding never clips.
+    val slot = (w - 1.dp) / shown.size
+    val tile = minOf(slot - gap, h - titleH - spacer - 1.dp).coerceAtLeast(8.dp)
+    Column(GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+        Row(GlanceModifier.fillMaxWidth().height(titleH).clickable(openApp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Dailies", style = style(12, Fg, FontWeight.Medium))
+            Spacer(GlanceModifier.defaultWeight())
+            Text("${Store.count(days, games)}/${games.size}", style = style(11, Muted, mono = true))
+        }
+        Spacer(GlanceModifier.height(spacer))
+        Row(GlanceModifier.fillMaxWidth()) {
+            shown.forEachIndexed { i, g ->
+                // first square sits flush with the title; the gap goes after each square
+                Box(GlanceModifier.width(slot).height(tile).padding(end = if (i < shown.size - 1) gap else 0.dp)) {
+                    Square(g, Store.has(days, g.bit), tile, GlanceModifier.clickable(openGame(g)))
                 }
             }
         }
