@@ -229,3 +229,7 @@ main {
 }
 .chip:hover { border-color: var(--muted); }
 .chip.on { background: var(--done); border-color: var(--done); color: var(--surface); }
+
+a.ghost { text-decoration: none; }
+a.ghost[hidden] { display: none; }
+.native .hint { display: none; }

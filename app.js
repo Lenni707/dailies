@@ -18,6 +18,8 @@ const today = () => dayNum();
    days: Map<dayNum, bitmask of games played>
    Saved to a cookie (primary) and localStorage (backup), merged on load.
    Cookie format: "2.<startDay base36>.<w>.<chars>" where each day is w base32 chars. */
+// Inside the Android app, progress lives in the app (shared with its widgets) instead of a cookie.
+const NATIVE = window.DailiesAndroid;
 const COOKIE = "dailies";
 const LS = "dailies:v2";
 const KEEP_DAYS = 400; // browsers cap cookie lifetime at 400 days anyway
@@ -57,6 +59,7 @@ function writeCookie(val) {
 }
 
 function load() {
+  if (NATIVE) return decode(NATIVE.load());
   const days = decode(readCookie());
   let ls = "";
   try { ls = localStorage.getItem(LS) || ""; } catch {}
@@ -86,6 +89,7 @@ function migrateV1(days) {
 
 function save(days) {
   const val = encode(days);
+  if (NATIVE) { NATIVE.save(val); return; }
   writeCookie(val);
   try { localStorage.setItem(LS, val); } catch {}
 }
@@ -225,7 +229,8 @@ $("nextMonth").addEventListener("click", () => { view.m++; if (view.m > 11) { vi
 function render() { renderList(); renderCal(); }
 
 function openGame(g) {
-  window.open(g.url, "_blank", "noopener");
+  if (NATIVE) NATIVE.open(g.url);
+  else window.open(g.url, "_blank", "noopener");
   set(g.bit, today(), true);
 }
 
@@ -252,8 +257,13 @@ function refresh() {
   }
   render();
 }
+window.dailiesRefresh = refresh;
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 setInterval(refresh, 60_000);
+
+// offer the Android app to Android browsers (not inside the app itself)
+if (!NATIVE && /Android/i.test(navigator.userAgent)) $("android").hidden = false;
+if (NATIVE) document.documentElement.classList.add("native");
 
 buildList();
 buildWeekdays();

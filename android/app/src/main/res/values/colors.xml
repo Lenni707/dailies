@@ -1,0 +1,16 @@
+<resources>
+    <color name="app_bg">#F6F5F2</color>
+    <color name="w_bg">#FFFFFF</color>
+    <color name="w_text">#16161A</color>
+    <color name="w_muted">#8A8A8F</color>
+    <color name="w_line">#E7E5E0</color>
+    <color name="w_done">#2F9E62</color>
+    <color name="w_on_done">#FFFFFF</color>
+    <color name="heat0">#E7E5E0</color>
+    <color name="heat1">#E0F0E7</color>
+    <color name="heat2">#C1E2D0</color>
+    <color name="heat3">#A2D3B8</color>
+    <color name="heat4">#83C4A0</color>
+    <color name="heat5">#2F9E62</color>
+    <color name="icon_bg">#0E0E10</color>
+</resources>

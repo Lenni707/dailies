@@ -1,0 +1,5 @@
+<resources>
+    <string name="widget_small">Today\'s count</string>
+    <string name="widget_wide">Today\'s games</string>
+    <string name="widget_large">Today\'s games and the last two weeks</string>
+</resources>
