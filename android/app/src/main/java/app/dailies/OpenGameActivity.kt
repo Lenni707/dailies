@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,7 +21,7 @@ class OpenGameActivity : Activity() {
             } catch (_: Exception) {
             }
             val app = applicationContext
-            CoroutineScope(Dispatchers.Default).launch { DailiesWidget().updateAll(app) }
+            CoroutineScope(Dispatchers.Default).launch { refreshWidgets(app) }
         }
         finish()
     }

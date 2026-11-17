@@ -27,8 +27,9 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
   <240dp tall = This week (count, full-day streak, Mon–Sun squares), else Overview (checklist w/ toggles, week, streaks).
   Registered 4 times (Tiny/Small/Wide/Large receivers = Today/Up next/This week/Overview in the picker).
   Glance limit: max 10 children per Row/Column (use padding, not spacers, in repeated cells).
-  Colours are resources: Material You system colours on API 31+ (values-v31, values-night-v31), fixed palette before.
-  The app also injects the system accent as the page's `--done` colour. Tapping a game goes through OpenGameActivity (marks + opens).
+  Refresh: always call `refreshWidgets(ctx)` (bumps a Glance state `version` then updates). Plain updateAll() does NOT
+  recompose because provideContent reads no state. Root of the widget is clickable → opens app; squares override.
+  Colours: background/text are Material You on API 31+ (values-v31, values-night-v31); progress (w_done, heat1-5) is a fixed green. Tapping a game goes through OpenGameActivity (marks + opens).
 - CI: `.github/workflows/android.yml` builds on changes to android/ or web files, uploads `dailies.apk` to release tag `android`.
   Download: https://github.com/Lenni707/dailies/releases/download/android/dailies.apk
 - Signing: `android/release.p12` + `android/release.pass` (gitignored, local only, BACK THEM UP). CI reads secrets
@@ -53,3 +54,4 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
 - 2026-11-17: Year-grid history with tooltips, undo toast; signed APK builds.
 - 2026-11-17: Editable games, widget redesign (heatmap, Material You, 2×1).
 - 2026-11-17: Widgets redesigned around today (2×1 squares default), up next, this week, overview.
+- 2026-11-17: Fixed widgets not refreshing (Glance state version), tap-anywhere opens app, fixed green progress.

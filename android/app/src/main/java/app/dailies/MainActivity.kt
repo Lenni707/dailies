@@ -16,7 +16,6 @@ import android.widget.FrameLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.glance.appwidget.updateAll
 import androidx.webkit.WebViewAssetLoader
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -66,7 +65,6 @@ class MainActivity : Activity() {
                 return true
             }
 
-            override fun onPageFinished(view: WebView, url: String) = applyAccent()
         }
         web.addJavascriptInterface(Bridge(), "DailiesAndroid")
         web.loadUrl("https://${WebViewAssetLoader.DEFAULT_DOMAIN}/assets/index.html")
@@ -84,16 +82,6 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
-    // Use the phone's Material You accent for the page's green (Android 12+).
-    private fun applyAccent() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-        val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-            Configuration.UI_MODE_NIGHT_YES
-        val c = getColor(if (night) android.R.color.system_accent1_200 else android.R.color.system_accent1_600)
-        val hex = String.format("#%06X", c and 0xFFFFFF)
-        web.evaluateJavascript("document.documentElement.style.setProperty('--done','$hex')", null)
-    }
-
     private fun openExternal(uri: Uri) {
         if (uri.scheme != "https" && uri.scheme != "http") return
         try {
@@ -109,7 +97,7 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun save(value: String) {
             Store.setRaw(applicationContext, value)
-            scope.launch { DailiesWidget().updateAll(applicationContext) }
+            scope.launch { refreshWidgets(applicationContext) }
         }
 
         @JavascriptInterface
@@ -118,7 +106,7 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun saveGames(value: String) {
             Games.setRaw(applicationContext, value)
-            scope.launch { DailiesWidget().updateAll(applicationContext) }
+            scope.launch { refreshWidgets(applicationContext) }
         }
 
         @JavascriptInterface

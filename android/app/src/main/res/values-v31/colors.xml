@@ -1,15 +1,8 @@
 <resources>
-    <!-- Material You: follows the phone's wallpaper colours on Android 12+ -->
+    <!-- Material You background/text on Android 12+; progress stays green (values/colors.xml) -->
     <color name="w_bg">@android:color/system_neutral1_50</color>
     <color name="w_text">@android:color/system_neutral1_900</color>
     <color name="w_muted">@android:color/system_neutral2_600</color>
     <color name="w_line">@android:color/system_neutral2_100</color>
-    <color name="w_done">@android:color/system_accent1_600</color>
-    <color name="w_on_done">@android:color/system_accent1_0</color>
     <color name="heat0">@android:color/system_neutral2_100</color>
-    <color name="heat1">@android:color/system_accent1_200</color>
-    <color name="heat2">@android:color/system_accent1_300</color>
-    <color name="heat3">@android:color/system_accent1_400</color>
-    <color name="heat4">@android:color/system_accent1_500</color>
-    <color name="heat5">@android:color/system_accent1_600</color>
 </resources>

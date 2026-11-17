@@ -27,7 +27,15 @@ import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
-import androidx.glance.appwidget.updateAll
+import android.appwidget.AppWidgetManager
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.state.updateAppWidgetState
+import androidx.glance.currentState
+import androidx.glance.state.PreferencesGlanceStateDefinition
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -49,17 +57,42 @@ import java.time.LocalDate
 import java.util.Locale
 
 class DailiesWidget : GlanceAppWidget() {
-    // Exact: LocalSize is the real widget size, so the grid can be sized to fit.
+    // Exact: LocalSize is the real widget size, so the squares can be sized to fit.
     override val sizeMode = SizeMode.Exact
+    override val stateDefinition = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        provideContent { Content(Store.load(context), Games.load(context)) }
+        provideContent {
+            // Reading this version is what makes Glance recompose when progress changes;
+            // without a state read it skips recomposition and the widget stays stale.
+            currentState(Version)
+            Content(Store.load(context), Games.load(context))
+        }
+    }
+}
+
+private val Version = longPreferencesKey("version")
+
+/** Redraw every Dailies widget with fresh data. Call after any change to progress or games. */
+suspend fun refreshWidgets(context: Context) {
+    val ids = GlanceAppWidgetManager(context).getGlanceIds(DailiesWidget::class.java)
+    val widget = DailiesWidget()
+    for (id in ids) {
+        updateAppWidgetState(context, id) { it[Version] = System.currentTimeMillis() }
+        widget.update(context, id)
     }
 }
 
 // Four entries in the widget picker (different default sizes); all render the same widget and adapt to its size.
 open class DailiesReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = DailiesWidget()
+
+    // Periodic update (every 30 min) and first placement: redraw so a new day shows up.
+    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds) // Glance holds the broadcast open (goAsync) itself
+        val app = context.applicationContext
+        CoroutineScope(Dispatchers.Default).launch { refreshWidgets(app) }
+    }
 }
 class TinyReceiver : DailiesReceiver()
 class SmallReceiver : DailiesReceiver()
@@ -72,7 +105,7 @@ class ToggleAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val bit = parameters[BitKey] ?: return
         Store.toggle(context, bit)
-        DailiesWidget().updateAll(context)
+        refreshWidgets(context)
     }
 }
 
@@ -110,7 +143,8 @@ private fun Content(days: Map<Long, Int>, games: List<Game>) {
     val w = size.width - padH * 2
     val h = size.height - padV * 2
     Box(
-        GlanceModifier.fillMaxSize().appWidgetBackground().cornerRadius(R.dimen.widget_radius)
+        // Tapping anywhere that isn't a square/button opens the app.
+        GlanceModifier.fillMaxSize().appWidgetBackground().cornerRadius(R.dimen.widget_radius).clickable(openApp)
             .background(Bg).padding(horizontal = padH, vertical = padV),
         contentAlignment = Alignment.Center,
     ) {
