@@ -110,6 +110,15 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun loadScores(): String = Store.rawScores(applicationContext)
+
+        @JavascriptInterface
+        fun saveScores(value: String) {
+            Store.setRawScores(applicationContext, value)
+            scope.launch { refreshWidgets(applicationContext) }
+        }
+
+        @JavascriptInterface
         fun open(url: String) {
             runOnUiThread { openExternal(Uri.parse(url)) }
         }

@@ -1,6 +1,7 @@
 package app.dailies
 
 import android.content.Context
+import org.json.JSONObject
 import java.time.LocalDate
 
 /**
@@ -11,6 +12,7 @@ import java.time.LocalDate
 object Store {
     private const val PREFS = "dailies"
     private const val KEY = "data"
+    private const val KEY_SCORES = "scores"
     private const val KEEP_DAYS = 400L
 
     fun today(): Long = LocalDate.now().toEpochDay()
@@ -22,6 +24,35 @@ object Store {
     @Synchronized
     fun setRaw(ctx: Context, value: String) {
         prefs(ctx).edit().putString(KEY, value).commit()
+    }
+
+    fun rawScores(ctx: Context): String = prefs(ctx).getString(KEY_SCORES, "") ?: ""
+
+    @Synchronized
+    fun setRawScores(ctx: Context, value: String) {
+        prefs(ctx).edit().putString(KEY_SCORES, value).commit()
+    }
+
+    fun todayScores(ctx: Context): Map<Int, String> = scoresForDay(ctx, today())
+
+    fun scoresForDay(ctx: Context, day: Long): Map<Int, String> {
+        val raw = rawScores(ctx)
+        if (raw.isBlank()) return emptyMap()
+        return try {
+            val root = JSONObject(raw)
+            val dayObj = root.optJSONObject(day.toString()) ?: return emptyMap()
+            val map = HashMap<Int, String>()
+            val keys = dayObj.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                val bit = k.toIntOrNull() ?: continue
+                val s = dayObj.optString(k, "")
+                if (s.isNotBlank()) map[bit] = s
+            }
+            map
+        } catch (_: Exception) {
+            emptyMap()
+        }
     }
 
     fun load(ctx: Context): Map<Long, Int> = decode(raw(ctx))

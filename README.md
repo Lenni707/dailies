@@ -2,7 +2,7 @@
 
 One page for the daily games I play: Wordle, Krillion, Farflung, Plain, Chartered.
 
-Click a game (or press its number) to open it in a new tab. It gets checked off for today. Streaks and history are saved in a cookie (with a localStorage backup). The calendar shows each day; click a day to fix what you played.
+Click a game (or press its number) to open it in a new tab. It gets checked off for today. Streaks, history, and game scores (e.g. 3/6, 920, 100%) are saved in storage (shared with the Android app and widgets). The calendar shows each day; click a day to fix what you played or edit scores. Use the **Scores** button to see your score log, stats, and averages.
 
 On a phone: Share → Add to Home Screen for an app icon.
 

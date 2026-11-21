@@ -66,7 +66,7 @@ class DailiesWidget : GlanceAppWidget() {
             // Reading this version is what makes Glance recompose when progress changes;
             // without a state read it skips recomposition and the widget stays stale.
             currentState(Version)
-            Content(Store.load(context), Games.load(context))
+            Content(Store.load(context), Games.load(context), Store.todayScores(context))
         }
     }
 }
@@ -135,7 +135,7 @@ private val openApp: Action get() = actionStartActivity<MainActivity>()
 /* ---------- layout ---------- */
 
 @Composable
-private fun Content(days: Map<Long, Int>, games: List<Game>) {
+private fun Content(days: Map<Long, Int>, games: List<Game>, scores: Map<Int, String> = emptyMap()) {
     val size = LocalSize.current
     val tiny = size.height < 100.dp
     val padH = if (tiny) 12.dp else 16.dp
@@ -153,7 +153,7 @@ private fun Content(days: Map<Long, Int>, games: List<Game>) {
             size.height < 100.dp -> Today(days, games, w, h)
             size.width < 200.dp -> UpNext(days, games)
             size.height < 240.dp -> ThisWeek(days, games)
-            else -> Overview(days, games)
+            else -> Overview(days, games, scores)
         }
     }
 }
@@ -228,7 +228,7 @@ private fun ThisWeek(days: Map<Long, Int>, games: List<Game>) {
 
 /** 4×4: today's checklist, this week and streaks. */
 @Composable
-private fun Overview(days: Map<Long, Int>, games: List<Game>) {
+private fun Overview(days: Map<Long, Int>, games: List<Game>, scores: Map<Int, String> = emptyMap()) {
     val shown = games.take(7)
     Column(GlanceModifier.fillMaxSize()) {
         Row(GlanceModifier.fillMaxWidth().clickable(openApp), verticalAlignment = Alignment.CenterVertically) {
@@ -240,6 +240,7 @@ private fun Overview(days: Map<Long, Int>, games: List<Game>) {
         Column(GlanceModifier.fillMaxWidth()) {
             shown.forEach { g ->
                 val on = Store.has(days, g.bit)
+                val score = scores[g.bit]
                 Row(
                     GlanceModifier.fillMaxWidth().height(34.dp).clickable(openGame(g)),
                     verticalAlignment = Alignment.CenterVertically,
@@ -252,6 +253,10 @@ private fun Overview(days: Map<Long, Int>, games: List<Game>) {
                     Spacer(GlanceModifier.width(12.dp))
                     Text(g.name, modifier = GlanceModifier.defaultWeight(),
                         style = style(14, if (on) Muted else Fg, FontWeight.Medium), maxLines = 1)
+                    if (!score.isNullOrBlank()) {
+                        Text(score, style = style(12, Muted, mono = true), maxLines = 1)
+                        Spacer(GlanceModifier.width(8.dp))
+                    }
                     Image(ImageProvider(R.drawable.ic_arrow), contentDescription = null, modifier = GlanceModifier.size(14.dp))
                 }
             }

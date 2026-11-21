@@ -41,6 +41,7 @@
       <div class="actions">
         <button class="ghost" id="next">Next unplayed <kbd>N</kbd></button>
         <button class="ghost" id="edit">Edit games</button>
+        <button class="ghost" id="viewScores">Scores</button>
       </div>
       <a class="ghost" id="android" hidden href="https://github.com/Lenni707/dailies/releases/download/android/dailies.apk">Android app</a>
       <span class="hint">Keys <kbd>1</kbd>–<kbd id="maxkey">5</kbd> open a game · resets at midnight</span>
@@ -87,9 +88,48 @@
       </form>
     </dialog>
 
+    <dialog class="editor score-modal" id="scoreModal" aria-labelledby="scoreTitle">
+      <div class="editor-head">
+        <div>
+          <h2 id="scoreTitle">Score</h2>
+          <p class="score-subtitle" id="scoreDate"></p>
+        </div>
+        <button class="icon" id="closeScore" aria-label="Close"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+      </div>
+      <form id="scoreForm" class="score-form" autocomplete="off">
+        <div class="score-input-wrap">
+          <input id="scoreInput" name="score" placeholder="e.g. 3/6, 920, 100%" maxlength="30" autocomplete="off">
+        </div>
+        <div class="score-quick" id="scoreQuick"></div>
+        <div class="score-actions">
+          <button class="remove" id="clearScore" type="button">Clear</button>
+          <div class="score-actions-right">
+            <button class="ghost" id="cancelScore" type="button">Cancel</button>
+            <button class="primary" type="submit">Save</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="editor scores-log-modal" id="scoresLogModal" aria-labelledby="scoresLogTitle">
+      <div class="editor-head">
+        <div>
+          <h2 id="scoresLogTitle">Scores</h2>
+          <p class="score-subtitle" id="scoresLogSubtitle">History of saved scores</p>
+        </div>
+        <button class="icon" id="closeScoresLog" aria-label="Close"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="scores-log-body">
+        <div class="scores-filter" id="scoresFilter"></div>
+        <div class="scores-summary" id="scoresSummary" hidden></div>
+        <div class="scores-list" id="scoresList"></div>
+      </div>
+    </dialog>
+
     <div class="tip" id="tip" role="tooltip" hidden></div>
     <div class="toast" id="toast" role="status" hidden>
       <span id="toastText"></span>
+      <button id="toastScore">Add score</button>
       <button id="undo">Undo</button>
     </div>
   </main>
@@ -103,6 +143,7 @@
           <span class="name"></span>
           <span class="blurb"></span>
         </span>
+        <span class="score-pill" role="button" tabindex="0" title="Record score"></span>
         <span class="streak"></span>
         <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 11 11 5M6 5h5v5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>

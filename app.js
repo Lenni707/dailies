@@ -131,6 +131,63 @@ function save(days) {
 let days = load();
 save(days);
 
+/* ---------- scores ----------
+   Map of dayNum -> { bit: "score" }.
+   Saved in native bridge if available, otherwise localStorage + cookie backup. */
+const SCORES_COOKIE = "dailies_scores";
+const SCORES_LS = "dailies:scores";
+
+function loadScores() {
+  let raw = "";
+  if (NATIVE && typeof NATIVE.loadScores === "function") {
+    try { raw = NATIVE.loadScores(); } catch {}
+  }
+  if (!raw) {
+    try { raw = localStorage.getItem(SCORES_LS) || ""; } catch {}
+    if (!raw) {
+      try { raw = unb64(readCookie(SCORES_COOKIE)); } catch {}
+    }
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch {}
+  return {};
+}
+
+function saveScores() {
+  const json = JSON.stringify(scores);
+  if (NATIVE && typeof NATIVE.saveScores === "function") {
+    try { NATIVE.saveScores(json); } catch {}
+  }
+  try { localStorage.setItem(SCORES_LS, json); } catch {}
+  try {
+    if (json.length < 2800) writeCookie(b64(json), SCORES_COOKIE);
+  } catch {}
+}
+
+let scores = loadScores();
+
+function getScore(bit, d = today()) {
+  return (scores[d] && scores[d][bit]) || "";
+}
+
+function setScore(bit, d, val) {
+  val = (val || "").trim();
+  if (val) {
+    if (!scores[d]) scores[d] = {};
+    scores[d][bit] = val;
+    if (!has(bit, d)) set(bit, d, true);
+  } else {
+    if (scores[d]) {
+      delete scores[d][bit];
+      if (Object.keys(scores[d]).length === 0) delete scores[d];
+    }
+  }
+  saveScores();
+  render();
+}
+
 const has = (bit, d = today()) => !!((days.get(d) || 0) & (1 << bit));
 
 function set(bit, d, on) {
@@ -168,6 +225,16 @@ function buildList() {
     li.querySelector(".name").textContent = g.name;
     li.querySelector(".blurb").textContent = g.blurb || hostOf(g.url);
     li.querySelector(".check").addEventListener("click", () => toggle(g.bit));
+    const scorePill = li.querySelector(".score-pill");
+    const onScoreClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openScoreModal(g, today());
+    };
+    scorePill.addEventListener("click", onScoreClick);
+    scorePill.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") onScoreClick(e);
+    });
     a.addEventListener("click", (e) => {
       if (NATIVE) { e.preventDefault(); openGame(g); return; }
       const was = has(g.bit);
@@ -194,6 +261,19 @@ function renderList() {
     chk.title = chk.ariaLabel = d ? "Mark as not played" : "Mark as played";
     const s = streak(bit);
     li.querySelector(".streak").textContent = s > 1 ? `${s}d` : "";
+    const sc = getScore(bit, today());
+    const scorePill = li.querySelector(".score-pill");
+    if (sc) {
+      scorePill.textContent = sc;
+      scorePill.classList.add("has-score");
+      scorePill.title = `Score: ${sc} · Click to edit`;
+      scorePill.setAttribute("aria-label", `Score: ${sc}`);
+    } else {
+      scorePill.textContent = "+ score";
+      scorePill.classList.remove("has-score");
+      scorePill.title = "Record score for today";
+      scorePill.setAttribute("aria-label", "Record score for today");
+    }
   }
   $("count").textContent = `${done}/${GAMES.length}`;
   $("fill").style.width = `${GAMES.length ? (done / GAMES.length) * 100 : 0}%`;
@@ -255,19 +335,35 @@ function renderCal() {
   $("calStats").textContent = `${total} ${total === 1 ? "game" : "games"} · ${full} full ${full === 1 ? "day" : "days"} this year`;
   scroller.scrollLeft = keepScroll ?? scroller.scrollWidth;
 
-  // selected day: edit what was played
+  // selected day: edit what was played & scores
   $("dayLabel").textContent = selected === t ? "Today" : fmtDay(selected);
   const chips = $("chips");
   chips.innerHTML = "";
   for (const g of GAMES) {
     const on = has(g.bit, selected);
-    const c = document.createElement("button");
-    c.className = "chip" + (on ? " on" : "");
-    c.textContent = g.name;
-    c.setAttribute("aria-pressed", on);
-    c.title = on ? "Mark as not played" : "Mark as played";
-    c.addEventListener("click", () => toggle(g.bit, selected));
-    chips.appendChild(c);
+    const sc = getScore(g.bit, selected);
+
+    const grp = document.createElement("div");
+    grp.className = "day-chip-group" + (on ? " on" : "");
+
+    const toggleBtn = document.createElement("button");
+    toggleBtn.type = "button";
+    toggleBtn.className = "chip-toggle";
+    toggleBtn.textContent = g.name;
+    toggleBtn.setAttribute("aria-pressed", on);
+    toggleBtn.title = on ? "Mark as not played" : "Mark as played";
+    toggleBtn.addEventListener("click", () => toggle(g.bit, selected));
+    grp.appendChild(toggleBtn);
+
+    const scoreBtn = document.createElement("button");
+    scoreBtn.type = "button";
+    scoreBtn.className = "chip-score";
+    scoreBtn.textContent = sc || "+score";
+    scoreBtn.title = sc ? `Score: ${sc} · Click to edit` : "Record score";
+    scoreBtn.addEventListener("click", () => openScoreModal(g, selected));
+    grp.appendChild(scoreBtn);
+
+    chips.appendChild(grp);
   }
 }
 
@@ -282,9 +378,19 @@ function showTip(cell) {
   head.textContent = `${fmtDay(n, { weekday: "long", month: "short", day: "numeric" })} · ${c}/${GAMES.length}`;
   tip.appendChild(head);
   for (const g of GAMES) {
+    const on = has(g.bit, n);
+    const sc = getScore(g.bit, n);
     const row = document.createElement("div");
-    row.className = "tip-row" + (has(g.bit, n) ? " on" : "");
-    row.textContent = g.name;
+    row.className = "tip-row" + (on ? " on" : "");
+    const nameEl = document.createElement("span");
+    nameEl.textContent = g.name;
+    row.appendChild(nameEl);
+    if (sc) {
+      const scoreEl = document.createElement("span");
+      scoreEl.className = "tip-score";
+      scoreEl.textContent = sc;
+      row.appendChild(scoreEl);
+    }
     tip.appendChild(row);
   }
   tip.hidden = false;
@@ -322,8 +428,11 @@ function toastPlayed(g) {
   const el = $("toast");
   $("toastText").textContent = `${g.name} marked as played`;
   el.hidden = false;
-  el.onclick = (e) => {
-    if (e.target.id !== "undo") return;
+  $("toastScore").onclick = () => {
+    el.hidden = true;
+    openScoreModal(g, today());
+  };
+  $("undo").onclick = () => {
     set(g.bit, today(), false);
     el.hidden = true;
   };
@@ -401,6 +510,206 @@ $("emptyAdd").addEventListener("click", () => { renderEditor(); editor.showModal
 $("closeEditor").addEventListener("click", () => editor.close());
 editor.addEventListener("click", (e) => { if (e.target === editor) editor.close(); });
 
+/* ---------- score modal ---------- */
+const scoreModal = $("scoreModal");
+let currentScoreGame = null;
+let currentScoreDay = null;
+
+function openScoreModal(game, day) {
+  currentScoreGame = game;
+  currentScoreDay = day;
+  $("scoreTitle").textContent = `${game.name} score`;
+  $("scoreDate").textContent = day === today() ? `Today · ${fmtDay(day)}` : fmtDay(day);
+  const currentVal = getScore(game.bit, day);
+  $("scoreInput").value = currentVal;
+  $("clearScore").hidden = !currentVal;
+
+  const quick = $("scoreQuick");
+  quick.innerHTML = "";
+  let presets = [];
+  const lname = game.name.toLowerCase();
+  if (lname.includes("wordle")) {
+    presets = ["1/6", "2/6", "3/6", "4/6", "5/6", "6/6", "X/6"];
+  } else if (lname.includes("farflung") || lname.includes("chartered")) {
+    presets = ["5/5", "4/5", "3/5", "2/5", "1/5"];
+  } else if (lname.includes("plain")) {
+    presets = ["100%", "95%", "90%", "85%", "80%"];
+  }
+
+  presets.forEach((p) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "quick-chip";
+    btn.textContent = p;
+    btn.onclick = () => {
+      $("scoreInput").value = p;
+      setScore(currentScoreGame.bit, currentScoreDay, p);
+      scoreModal.close();
+    };
+    quick.appendChild(btn);
+  });
+
+  scoreModal.showModal();
+  setTimeout(() => $("scoreInput").focus(), 30);
+}
+
+$("scoreForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!currentScoreGame) return;
+  const val = $("scoreInput").value.trim();
+  setScore(currentScoreGame.bit, currentScoreDay, val);
+  scoreModal.close();
+});
+
+$("clearScore").addEventListener("click", () => {
+  if (!currentScoreGame) return;
+  setScore(currentScoreGame.bit, currentScoreDay, "");
+  scoreModal.close();
+});
+$("cancelScore").addEventListener("click", () => scoreModal.close());
+$("closeScore").addEventListener("click", () => scoreModal.close());
+scoreModal.addEventListener("click", (e) => { if (e.target === scoreModal) scoreModal.close(); });
+
+/* ---------- scores log modal ---------- */
+const scoresLogModal = $("scoresLogModal");
+let activeScoresFilter = "all";
+
+function openScoresLog() {
+  renderScoresLog();
+  scoresLogModal.showModal();
+}
+
+function renderScoresLog() {
+  const filterWrap = $("scoresFilter");
+  filterWrap.innerHTML = "";
+
+  const allBtn = document.createElement("button");
+  allBtn.type = "button";
+  allBtn.className = "filter-pill" + (activeScoresFilter === "all" ? " active" : "");
+  allBtn.textContent = "All games";
+  allBtn.onclick = () => { activeScoresFilter = "all"; renderScoresLog(); };
+  filterWrap.appendChild(allBtn);
+
+  GAMES.forEach((g) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "filter-pill" + (activeScoresFilter === String(g.bit) ? " active" : "");
+    btn.textContent = g.name;
+    btn.onclick = () => { activeScoresFilter = String(g.bit); renderScoresLog(); };
+    filterWrap.appendChild(btn);
+  });
+
+  // Collect all recorded scores sorted by day descending
+  const entries = [];
+  const dayKeys = Object.keys(scores).map(Number).sort((a, b) => b - a);
+  for (const d of dayKeys) {
+    const dayScores = scores[d] || {};
+    for (const [bitStr, scoreVal] of Object.entries(dayScores)) {
+      const bit = +bitStr;
+      if (activeScoresFilter !== "all" && activeScoresFilter !== String(bit)) continue;
+      const game = GAMES.find((g) => g.bit === bit) || { bit, name: `Game #${bit}` };
+      entries.push({ day: d, bit, game, score: scoreVal });
+    }
+  }
+
+  // Summary statistics
+  const summary = $("scoresSummary");
+  if (entries.length > 0) {
+    summary.hidden = false;
+    summary.innerHTML = "";
+
+    const totalStat = document.createElement("div");
+    totalStat.className = "summary-stat";
+    totalStat.innerHTML = `<span class="stat-label">Recorded</span><span class="stat-val">${entries.length}</span>`;
+    summary.appendChild(totalStat);
+
+    // If filtering a single game or all, check if numeric / fraction
+    const guesses = [];
+    const nums = [];
+    entries.forEach((e) => {
+      const m = e.score.match(/^(\d+)\/(\d+)$/);
+      if (m) {
+        guesses.push(+m[1]);
+      } else {
+        const num = parseFloat(e.score.replace(/[^0-9.-]/g, ""));
+        if (!isNaN(num)) nums.push(num);
+      }
+    });
+
+    if (guesses.length >= 2) {
+      const avg = (guesses.reduce((a, b) => a + b, 0) / guesses.length).toFixed(1);
+      const best = Math.min(...guesses);
+      const statEl = document.createElement("div");
+      statEl.className = "summary-stat";
+      statEl.innerHTML = `<span class="stat-label">Avg tries</span><span class="stat-val">${avg}</span>`;
+      summary.appendChild(statEl);
+
+      const bestEl = document.createElement("div");
+      bestEl.className = "summary-stat";
+      bestEl.innerHTML = `<span class="stat-label">Best</span><span class="stat-val">${best}</span>`;
+      summary.appendChild(bestEl);
+    } else if (nums.length >= 2 && activeScoresFilter !== "all") {
+      const avg = Math.round(nums.reduce((a, b) => a + b, 0) / nums.length);
+      const max = Math.max(...nums);
+      const statEl = document.createElement("div");
+      statEl.className = "summary-stat";
+      statEl.innerHTML = `<span class="stat-label">Average</span><span class="stat-val">${avg}</span>`;
+      summary.appendChild(statEl);
+
+      const maxEl = document.createElement("div");
+      maxEl.className = "summary-stat";
+      maxEl.innerHTML = `<span class="stat-label">Best</span><span class="stat-val">${max}</span>`;
+      summary.appendChild(maxEl);
+    }
+  } else {
+    summary.hidden = true;
+  }
+
+  const listEl = $("scoresList");
+  listEl.innerHTML = "";
+  if (!entries.length) {
+    const empty = document.createElement("div");
+    empty.className = "scores-empty";
+    empty.textContent = "No scores recorded yet. Click '+ score' on any game to record one.";
+    listEl.appendChild(empty);
+    return;
+  }
+
+  entries.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "score-row";
+    row.title = "Click to edit score";
+
+    const left = document.createElement("div");
+    left.className = "score-row-left";
+
+    const gameName = document.createElement("span");
+    gameName.className = "score-row-game";
+    gameName.textContent = item.game.name;
+
+    const dateStr = document.createElement("span");
+    dateStr.className = "score-row-date";
+    dateStr.textContent = item.day === today() ? `Today · ${fmtDay(item.day)}` : fmtDay(item.day);
+
+    left.append(gameName, dateStr);
+
+    const val = document.createElement("span");
+    val.className = "score-row-val";
+    val.textContent = item.score;
+
+    row.append(left, val);
+    row.onclick = () => {
+      scoresLogModal.close();
+      openScoreModal(item.game, item.day);
+    };
+    listEl.appendChild(row);
+  });
+}
+
+$("viewScores").addEventListener("click", openScoresLog);
+$("closeScoresLog").addEventListener("click", () => scoresLogModal.close());
+scoresLogModal.addEventListener("click", (e) => { if (e.target === scoresLogModal) scoresLogModal.close(); });
+
 /* ---------- glue ---------- */
 function render() { renderList(); renderCal(); }
 
@@ -429,6 +738,7 @@ document.addEventListener("keydown", (e) => {
 let lastDay = today();
 function refresh() {
   days = load();
+  scores = loadScores();
   const fresh = loadGames();
   if (JSON.stringify(fresh) !== JSON.stringify(cfg)) { cfg = fresh; GAMES = cfg.games; buildList(); }
   if (today() !== lastDay) {

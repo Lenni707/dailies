@@ -108,6 +108,40 @@ h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; }
 .streak { font: 500 12px "Geist Mono", monospace; color: var(--muted); white-space: nowrap; }
 .streak:empty { display: none; }
 
+.score-pill {
+  font: 500 11px "Geist Mono", monospace;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  background: none;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+  transition: all .15s;
+  user-select: none;
+}
+.score-pill:hover, .score-pill:focus-visible {
+  border-color: var(--muted);
+  color: var(--text);
+  outline: none;
+}
+.game.done .score-pill:not(.has-score) {
+  border-color: color-mix(in srgb, var(--done) 50%, var(--line));
+  color: var(--done);
+}
+.score-pill.has-score {
+  font-weight: 600;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--done) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--done) 45%, var(--line));
+  color: var(--text);
+}
+.score-pill.has-score:hover, .score-pill.has-score:focus-visible {
+  border-color: var(--done);
+  background: color-mix(in srgb, var(--done) 22%, var(--surface));
+}
+
 .arrow { width: 16px; height: 16px; color: var(--muted); flex: none; transition: transform .15s, color .15s; }
 .open:hover .arrow { color: var(--text); transform: translate(1px, -1px); }
 
@@ -263,6 +297,13 @@ main {
 }
 .tip-row.on { opacity: 1; }
 .tip-row.on::before { background: var(--done); border-color: var(--done); }
+.tip-score {
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  margin-left: auto;
+  padding-left: 8px;
+  opacity: 0.9;
+}
 
 .detail {
   margin-top: 18px;
@@ -286,6 +327,52 @@ main {
 .chip:hover { border-color: var(--muted); }
 .chip.on { background: var(--done); border-color: var(--done); color: var(--surface); }
 
+.day-chip-group {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: none;
+  overflow: hidden;
+}
+.day-chip-group.on {
+  background: var(--done);
+  border-color: var(--done);
+}
+.day-chip-group .chip-toggle {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px 4px 10px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.day-chip-group.on .chip-toggle {
+  color: var(--surface);
+}
+.day-chip-group .chip-score {
+  font: 500 11px "Geist Mono", monospace;
+  padding: 2px 7px;
+  margin-right: 4px;
+  border-radius: 99px;
+  border: 0;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .15s;
+}
+.day-chip-group.on .chip-score {
+  background: color-mix(in srgb, var(--surface) 25%, transparent);
+  color: var(--surface);
+}
+.day-chip-group .chip-score:hover {
+  background: color-mix(in srgb, var(--text) 16%, transparent);
+}
+.day-chip-group.on .chip-score:hover {
+  background: color-mix(in srgb, var(--surface) 40%, transparent);
+}
+
 .toast {
   position: fixed;
   left: 50%;
@@ -303,6 +390,19 @@ main {
   box-shadow: 0 6px 20px rgb(0 0 0 / .18);
 }
 .toast[hidden] { display: none; }
+#toastScore {
+  font: inherit;
+  font-weight: 500;
+  color: var(--surface);
+  background: color-mix(in srgb, var(--surface) 18%, transparent);
+  border: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#toastScore:hover {
+  background: color-mix(in srgb, var(--surface) 28%, transparent);
+}
 #undo {
   font: inherit;
   font-weight: 500;
@@ -413,3 +513,135 @@ a.ghost[hidden] { display: none; }
 .icon svg { width: 14px; height: 14px; }
 .icon:hover { border-color: var(--muted); }
 .icon:disabled { opacity: .3; cursor: default; }
+
+/* score modal */
+.score-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.score-form {
+  display: grid;
+  gap: 12px;
+}
+.score-input-wrap input {
+  width: 100%;
+  box-sizing: border-box;
+  font: 500 16px "Geist Mono", monospace;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  outline: none;
+}
+.score-input-wrap input:focus {
+  border-color: var(--muted);
+}
+.score-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.quick-chip {
+  font: 500 12px "Geist Mono", monospace;
+  padding: 4px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.quick-chip:hover {
+  border-color: var(--muted);
+  background: color-mix(in srgb, var(--text) 5%, var(--surface));
+}
+.score-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+.score-actions-right {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* scores log modal */
+.scores-log-modal {
+  width: min(480px, calc(100vw - 32px));
+}
+.scores-filter {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+  scrollbar-width: none;
+}
+.scores-filter::-webkit-scrollbar { display: none; }
+.filter-pill {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.filter-pill:hover { border-color: var(--muted); color: var(--text); }
+.filter-pill.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+.scores-summary {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--text) 4%, var(--surface));
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.summary-stat { display: flex; flex-direction: column; }
+.stat-label { font-size: 11px; color: var(--muted); }
+.stat-val { font: 600 14px "Geist Mono", monospace; color: var(--text); }
+
+.scores-list {
+  display: grid;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.score-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.score-row:hover { border-color: var(--muted); }
+.score-row-left { display: flex; flex-direction: column; gap: 2px; }
+.score-row-game { font-weight: 500; font-size: 13px; }
+.score-row-date { font-size: 11px; color: var(--muted); }
+.score-row-val {
+  font: 600 12px "Geist Mono", monospace;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--done) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--done) 45%, var(--line));
+  border-radius: 6px;
+}
+.scores-empty {
+  text-align: center;
+  padding: 28px 12px;
+  color: var(--muted);
+  font-size: 13px;
+}

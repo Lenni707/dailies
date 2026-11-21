@@ -11,6 +11,7 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
   Saved to cookie `dailies` (primary, Max-Age 400d, SameSite=Lax, Secure on https) and localStorage `dailies:v2` (backup); merged on load.
   Encoding: `2.<startDay base36>.<width>.<base32 chars per day>`, ~400 bytes/year. v1 localStorage data is migrated automatically.
 - Opening a game marks it done today. The circle toggles it by hand.
+- Score tracking: map of day number -> `{ bit: "score string" }`. Saved to localStorage `dailies:scores` (+ cookie `dailies_scores`) on web, and via JS bridge (`loadScores` / `saveScores`, SharedPreferences `scores`) in the Android app. Displayed on game cards, post-game toast ("Add score"), calendar tooltip and day chips, and the Overview Android widget. Dedicated "Scores" log modal with stats (average tries, best score, count) and game filter.
 - Deploy: GitHub Actions (`.github/workflows/pages.yml`) publishes to Pages on every push to `main`.
 - Docker: nginx serving the three files (optional, for local runs).
 - Embedding: checked 2026-11-17. All five official sites block iframes (XFO DENY / frame-ancestors none). Do not proxy them.
@@ -46,6 +47,7 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
 - [x] Android app + 3 widgets (built in CI)
 - [x] Signing secrets added to GitHub (release builds signed with android/release.p12)
 - [x] Home-screen icon + web manifest (icons/icon.svg is the source; PNGs rendered with headless Chrome + sips)
+- [x] Score tracking: save and view scores per game (web + Android app + Overview widget), score log modal with stats, quick-guess chips, calendar history
 
 ## Log
 - 2026-11-17: Initial version.
@@ -55,3 +57,4 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
 - 2026-11-17: Editable games, widget redesign (heatmap, Material You, 2×1).
 - 2026-11-17: Widgets redesigned around today (2×1 squares default), up next, this week, overview.
 - 2026-11-17: Fixed widgets not refreshing (Glance state version), tap-anywhere opens app, fixed green progress.
+- 2026-11-21: Added score saving and tracking for individual games (web & mobile), score badges, quick chips, calendar history scores, score log modal with stats, Android bridge & widget score display.
