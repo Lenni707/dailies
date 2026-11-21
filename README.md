@@ -4,6 +4,10 @@ One page for the daily games I play: Wordle, Krillion, Farflung, Plain, Chartere
 
 Click a game (or press its number) to open it in a new tab. It gets checked off for today. Streaks, history, and game scores (e.g. 3/6, 920, 100%) are saved in storage (shared with the Android app and widgets). The calendar shows each day with per-game score heatmaps; click a day to fix what you played or edit scores. A dedicated **Statistics & Trends** section features interactive score-over-time graphs and guess distribution histograms for each game.
 
+Copy a game's result, open its score editor, and choose **Smart paste**. Review the detected score and date, then save. If clipboard access is unavailable, paste into the result field. Use the calendar to import a result for an earlier day.
+
+Open **Stats** and choose a game to see its score trend and streaks. For Wordle, pasting the full share text also saves the color grid, with each guess and tile position shown in the date picker’s board.
+
 On a phone: Share → Add to Home Screen for an app icon.
 
 **Live:** https://lenni707.github.io/dailies/

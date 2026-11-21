@@ -42,6 +42,8 @@
         <button class="ghost" id="next">Next unplayed <kbd>N</kbd></button>
         <button class="ghost" id="edit">Edit games</button>
         <button class="ghost" id="viewScores">Scores</button>
+        <a class="ghost" href="#statsSection">Stats</a>
+        <button class="ghost" id="shareBtn">Share card</button>
       </div>
       <a class="ghost" id="android" hidden href="https://github.com/Lenni707/dailies/releases/download/android/dailies.apk">Android app</a>
       <span class="hint">Keys <kbd>1</kbd>–<kbd id="maxkey">5</kbd> open a game · resets at midnight</span>
@@ -100,6 +102,13 @@
         </div>
         <div class="dist-chart" id="distChart"></div>
       </div>
+      <div class="chart-card" id="wordleCard" hidden>
+        <div class="chart-card-head">
+          <span class="chart-title">Wordle guess boards</span>
+          <select id="wordleDate" aria-label="Wordle result date"></select>
+        </div>
+        <div id="wordleStatsBoard"></div>
+      </div>
     </section>
 
     <dialog class="editor" id="editor" aria-labelledby="editorTitle">
@@ -131,10 +140,18 @@
       <form id="scoreForm" class="score-form" autocomplete="off">
         <div class="score-input-wrap">
           <input id="scoreInput" name="score" placeholder="e.g. 3/6, 920, 100%" maxlength="30" autocomplete="off">
+          <button class="ghost paste-btn" id="pasteScoreClipboard" type="button" title="Paste score or share text from clipboard">Smart paste</button>
         </div>
+        <div id="pastePanel" hidden>
+          <label for="shareInput">Copied game result</label>
+          <textarea id="shareInput" rows="4" placeholder="Paste the result from the game’s Share or Copy result button"></textarea>
+          <p id="pasteStatus" role="status"></p>
+        </div>
+        <div id="scoreWordleBoard"></div>
         <div class="score-quick" id="scoreQuick"></div>
         <div class="score-actions">
           <button class="remove" id="clearScore" type="button">Clear</button>
+          <button class="ghost" id="scoreShareCard" type="button">Share card</button>
           <div class="score-actions-right">
             <button class="ghost" id="cancelScore" type="button">Cancel</button>
             <button class="primary" type="submit">Save</button>
@@ -158,9 +175,33 @@
       </div>
     </dialog>
 
+    <dialog class="editor share-modal" id="shareModal" aria-labelledby="shareTitle">
+      <div class="editor-head">
+        <div>
+          <h2 id="shareTitle">Share Card</h2>
+          <p class="score-subtitle" id="shareSubtitle">Clean graphic for clipboard & sharing</p>
+        </div>
+        <button class="icon" id="closeShare" aria-label="Close"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="share-modal-body">
+        <div class="share-filter" id="shareFilter"></div>
+        <div class="share-preview-wrap">
+          <canvas id="shareCanvas" class="share-canvas"></canvas>
+        </div>
+        <div class="share-actions-row">
+          <button class="primary" id="copyGraphicBtn">Copy image</button>
+          <button class="ghost" id="copyShareTextBtn">Copy text</button>
+          <button class="ghost" id="nativeShareBtn">Share...</button>
+          <button class="ghost" id="downloadGraphicBtn">Save image</button>
+        </div>
+        <div class="share-feedback" id="shareFeedback" hidden></div>
+      </div>
+    </dialog>
+
     <div class="tip" id="tip" role="tooltip" hidden></div>
     <div class="toast" id="toast" role="status" hidden>
       <span id="toastText"></span>
+      <button id="toastPaste">📋 Paste</button>
       <button id="toastScore">Add score</button>
       <button id="undo">Undo</button>
     </div>

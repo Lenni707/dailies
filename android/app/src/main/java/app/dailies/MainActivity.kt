@@ -2,6 +2,7 @@ package app.dailies
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
@@ -116,6 +117,14 @@ class MainActivity : Activity() {
         fun saveScores(value: String) {
             Store.setRawScores(applicationContext, value)
             scope.launch { refreshWidgets(applicationContext) }
+        }
+
+        @JavascriptInterface
+        fun readClipboard(): String {
+            val clipboard = getSystemService(ClipboardManager::class.java)
+            val clip = clipboard.primaryClip ?: return ""
+            if (clip.itemCount == 0) return ""
+            return clip.getItemAt(0).text?.toString().orEmpty()
         }
 
         @JavascriptInterface

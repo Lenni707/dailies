@@ -137,7 +137,10 @@ save(days);
 const SCORES_COOKIE = "dailies_scores";
 const SCORES_LS = "dailies:scores";
 
+let wordleBoards = {};
+
 function loadScores() {
+  wordleBoards = {};
   let raw = "";
   if (NATIVE && typeof NATIVE.loadScores === "function") {
     try { raw = NATIVE.loadScores(); } catch {}
@@ -150,13 +153,17 @@ function loadScores() {
   }
   try {
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") return parsed;
+    if (parsed && typeof parsed === "object") {
+      const { wordle = {}, ...dayScores } = parsed;
+      if (wordle && typeof wordle === "object") wordleBoards = wordle;
+      return dayScores;
+    }
   } catch {}
   return {};
 }
 
 function saveScores() {
-  const json = JSON.stringify(scores);
+  const json = JSON.stringify({ ...scores, wordle: wordleBoards });
   if (NATIVE && typeof NATIVE.saveScores === "function") {
     try { NATIVE.saveScores(json); } catch {}
   }
@@ -172,8 +179,14 @@ function getScore(bit, d = today()) {
   return (scores[d] && scores[d][bit]) || "";
 }
 
-function setScore(bit, d, val) {
+function setScore(bit, d, val, board = null) {
   val = (val || "").trim();
+  if (board) {
+    (wordleBoards[d] ??= {})[bit] = board;
+  } else if ((!val || val !== getScore(bit, d)) && wordleBoards[d]) {
+    delete wordleBoards[d][bit];
+    if (!Object.keys(wordleBoards[d]).length) delete wordleBoards[d];
+  }
   if (val) {
     if (!scores[d]) scores[d] = {};
     scores[d][bit] = val;
@@ -285,7 +298,7 @@ function renderList() {
 function parseScore(val, gameName = "") {
   if (!val) return null;
   val = String(val).trim();
-  const fracMatch = val.match(/^([0-9xX]+)\s*\/\s*(\d+)$/);
+  const fracMatch = val.match(/^(\d+|x)\s*\/\s*(\d+)$/i);
   if (fracMatch) {
     const isX = fracMatch[1].toUpperCase() === "X";
     const den = parseInt(fracMatch[2], 10);
@@ -296,13 +309,13 @@ function parseScore(val, gameName = "") {
       denominator: den,
       raw: val,
       isLoss: isX,
-      lowerIsBetter: true
+      lowerIsBetter: den === 6 || /wordle/i.test(gameName)
     };
   }
   if (val.toUpperCase() === "X") {
     return { type: "fraction", value: 7, denominator: 6, raw: val, isLoss: true, lowerIsBetter: true };
   }
-  const pctMatch = val.match(/^([0-9.]+)\s*%$/);
+  const pctMatch = val.match(/^(\d+(?:\.\d+)?)\s*%$/);
   if (pctMatch) {
     return {
       type: "percent",
@@ -312,7 +325,7 @@ function parseScore(val, gameName = "") {
     };
   }
   const clean = val.replace(/,/g, "");
-  const numMatch = clean.match(/^([0-9.]+)/);
+  const numMatch = clean.match(/^(\d+(?:\.\d+)?)/);
   if (numMatch) {
     return {
       type: "number",
@@ -334,14 +347,14 @@ function scoreLevelForGame(bit, d) {
 
   if (ps.type === "fraction") {
     if (ps.isLoss) return 1;
-    if (ps.denominator === 6) {
+    if (ps.denominator === 6 && ps.lowerIsBetter) {
       if (ps.value <= 2) return 5;
       if (ps.value === 3) return 4;
       if (ps.value === 4) return 3;
       if (ps.value === 5) return 2;
       return 1;
     }
-    const r = (ps.denominator - ps.value + 1) / ps.denominator;
+    const r = ps.value / ps.denominator;
     return Math.max(1, Math.min(5, Math.round(r * 5)));
   }
 
@@ -578,6 +591,10 @@ function toastPlayed(g) {
     el.hidden = true;
     openScoreModal(g, today());
   };
+  $("toastPaste").onclick = () => {
+    $("toastScore").onclick();
+    $("pasteScoreClipboard").click();
+  };
   $("undo").onclick = () => {
     set(g.bit, today(), false);
     el.hidden = true;
@@ -699,7 +716,7 @@ function calculateGameStats(bit) {
 
   let avgScore = null;
   let bestScore = null;
-  const numValues = entries.filter((e) => e.parsed && e.parsed.value !== null && !e.parsed.isLoss);
+  const numValues = comparableScores(entries).filter((e) => !e.parsed.isLoss);
 
   if (numValues.length > 0) {
     const sum = numValues.reduce((acc, e) => acc + e.parsed.value, 0);
@@ -708,7 +725,8 @@ function calculateGameStats(bit) {
 
     if (firstType === "fraction") {
       avgScore = `${avgVal.toFixed(1)} / ${numValues[0].parsed.denominator}`;
-      const bestVal = Math.min(...numValues.map((e) => e.parsed.value));
+      const best = numValues[0].parsed.lowerIsBetter ? Math.min : Math.max;
+      const bestVal = best(...numValues.map((e) => e.parsed.value));
       bestScore = `${bestVal} / ${numValues[0].parsed.denominator}`;
     } else if (firstType === "percent") {
       avgScore = `${avgVal.toFixed(1)}%`;
@@ -808,6 +826,7 @@ function renderStatsSection() {
   }
 
   renderScoreChart(st);
+  renderWordleStats(st.game.bit);
 
   const distCard = $("distCard");
   const distChart = $("distChart");
@@ -841,13 +860,19 @@ function renderStatsSection() {
   }
 }
 
+function comparableScores(entries) {
+  const numeric = entries.filter(({ parsed }) => Number.isFinite(parsed.value));
+  const last = numeric.at(-1)?.parsed;
+  return numeric.filter(({ parsed }) => parsed.type === last.type && parsed.denominator === last.denominator);
+}
+
 function renderScoreChart(st) {
   const wrap = $("scoreChartWrap");
   if (!wrap) return;
   wrap.innerHTML = "";
 
   const t = today();
-  let entries = st.entries.filter((e) => e.parsed && e.parsed.value !== null);
+  let entries = comparableScores(st.entries);
 
   if (statsChartRange === 14) {
     entries = entries.filter((e) => e.day >= t - 14);
@@ -871,12 +896,12 @@ function renderScoreChart(st) {
 
   let yMin, yMax;
   if (firstParsed.type === "fraction") {
-    yMin = 1;
-    yMax = Math.max(firstParsed.denominator, Math.max(...vals));
+    yMin = lowerIsBetter ? 1 : 0;
+    yMax = Math.max(2, firstParsed.denominator, Math.max(...vals));
   } else if (firstParsed.type === "percent") {
     const minVal = Math.min(...vals);
     yMin = Math.max(0, Math.min(60, Math.floor(minVal / 10) * 10));
-    yMax = 100;
+    yMax = Math.max(100, ...vals);
   } else {
     const minVal = Math.min(...vals);
     const maxVal = Math.max(...vals);
@@ -885,8 +910,10 @@ function renderScoreChart(st) {
     if (yMin === yMax) { yMin -= 5; yMax += 5; }
   }
 
-  const points = entries.map((e, i) => {
-    const x = entries.length === 1 ? pad.left + pw / 2 : pad.left + (i / (entries.length - 1)) * pw;
+  const firstDay = entries[0].day;
+  const lastDay = entries.at(-1).day;
+  const points = entries.map((e) => {
+    const x = firstDay === lastDay ? pad.left + pw / 2 : pad.left + ((e.day - firstDay) / (lastDay - firstDay)) * pw;
     let y;
     if (lowerIsBetter) {
       y = pad.top + ((e.parsed.value - yMin) / (yMax - yMin)) * ph;
@@ -959,9 +986,11 @@ function renderScoreChart(st) {
     svg.appendChild(line);
   }
 
-  const dateStep = Math.max(1, Math.floor(points.length / 4));
+  let lastLabelX = -Infinity;
   points.forEach((p, i) => {
-    if (i === 0 || i === points.length - 1 || i % dateStep === 0) {
+    const isLast = i === points.length - 1;
+    if (i === 0 || isLast || (p.x - lastLabelX >= 80 && points.at(-1).x - p.x >= 80)) {
+      lastLabelX = p.x;
       const txt = document.createElementNS(svgNS, "text");
       txt.setAttribute("x", p.x);
       txt.setAttribute("y", H - 8);
@@ -1008,14 +1037,125 @@ function renderScoreChart(st) {
     svg.appendChild(circle);
   });
 
-  wrap.addEventListener("mouseleave", () => { tooltip.hidden = true; });
+  wrap.onmouseleave = () => { tooltip.hidden = true; };
   wrap.appendChild(svg);
+}
+
+/* ---------- result imports & Wordle boards ---------- */
+function parseSharedResult(game, input) {
+  const text = input.trim().replace(/[\uFE0E\uFE0F]/g, "");
+  const name = game.name.trim().toLowerCase();
+  const wordle = text.match(/^Wordle\s+[\d,.]+\s+([1-6X])\s*\/\s*6\*?\s*$/im);
+  if (wordle && name !== "wordle") return null;
+  const scoreNumber = String.raw`(?:\d{1,3}(?:[, '\u00a0\u202f]\d{3})+|\d+)(?:\.\d+)?`;
+  const plainScore = new RegExp(`^(?:${scoreNumber}\\s*%?|(?:[1-6]|X)\\s*\\/\\s*6|\\d+\\s*\\/\\s*\\d+)$`, "i");
+  const normalize = (score) => score.toUpperCase().replace(/[, '\u00a0\u202f]/g, "");
+  if (plainScore.test(text)) return { score: normalize(text) };
+
+  if (name === "wordle") {
+    if (!wordle) return null;
+    const cells = { "🟩": "g", "🟨": "y", "⬛": "x", "⬜": "x", "🟧": "g", "🟦": "y" };
+    const rows = text.split(/\r?\n/).map((line) => line.replace(/\s/g, ""))
+      .filter((line) => /^[🟩🟨⬛⬜🟧🟦]+$/u.test(line))
+      .map((line) => Array.from(line, (cell) => cells[cell]).join(""));
+    const tries = wordle[1].toUpperCase();
+    const won = tries !== "X";
+    const validBoard = rows.length === (won ? +tries : 6) &&
+      rows.every((row, i) => row.length === 5 && (row === "ggggg") === (won && i === rows.length - 1));
+    return { score: `${tries}/6`, board: validBoard ? rows : null };
+  }
+
+  const formats = {
+    krillion: { host: "krillion.io", unit: "points?|pts\\.?" },
+    farflung: { host: "farflung.game", unit: "km|kilomet(?:er|re)s?" },
+    plain: { host: "playplain.app", unit: "m|met(?:er|re)s?" },
+    chartered: { host: "playchartered.com", unit: "points?|pts\\.?" }
+  };
+  const format = Object.prototype.hasOwnProperty.call(formats, name) && formats[name];
+  if (!format) return null;
+  const withoutLinks = text.replace(/(?:https?:\/\/|www\.)\S+/gi, "");
+  const lines = withoutLinks.split(/\r?\n/);
+  const source = Object.entries(formats).find(([label, { host }]) =>
+    new RegExp(`(?:^|[\\n\\s/])(?:www\\.)?${host.replace(".", "\\.")}(?=[/\\s]|$)`, "i").test(text) ||
+    lines.some((line) => new RegExp(`^\\s*(?:i played\\s+)?${label}\\b`, "i").test(line))
+  );
+  if (source && source[0] !== name) return null;
+
+  // The game header can contain a puzzle number. Only read it as a score
+  // when it has a score unit, a denominator, or an explicit score label.
+  const unit = new RegExp(`(?:^|[^\\w#.,/-])(${scoreNumber})\\s*(?:${format.unit})(?![\\w/])`, "i");
+  const total = new RegExp(`(?:^|[^\\w#.,/-])(${scoreNumber})\\s*(?:/|out of)\\s*(${scoreNumber})(?![\\w.,/])`, "i");
+  const labelled = new RegExp(`\\b(?:score|altitude|distance)\\s*[:=·]\\s*(${scoreNumber})(\\s*%)?`, "i");
+  for (const line of lines) {
+    const match = line.match(total);
+    if (match && +normalize(match[2]) > 0 && +normalize(match[1]) <= +normalize(match[2])) {
+      return { score: `${normalize(match[1])}/${normalize(match[2])}` };
+    }
+    const measured = line.match(unit);
+    if (measured) return { score: normalize(measured[1]) };
+    const marked = line.match(labelled);
+    if (marked) return { score: normalize(marked[1]) + (marked[2] ? "%" : "") };
+  }
+  const standalone = lines.map((line) => line.trim()).filter((line) => plainScore.test(line));
+  return source && standalone.length === 1 ? { score: normalize(standalone[0]) } : null;
+}
+
+const wordleTileNames = { g: "Correct position", y: "Wrong position", x: "Absent" };
+
+function renderWordleBoard(container, rows) {
+  container.replaceChildren();
+  if (!Array.isArray(rows) || !rows.length || rows.some((row) => !/^[gyx]{5}$/.test(row))) return;
+  const board = document.createElement("div");
+  board.className = "wordle-board";
+  board.setAttribute("role", "img");
+  board.setAttribute("aria-label", rows.map((row, i) =>
+    `Guess ${i + 1}: ${Array.from(row, (cell) => wordleTileNames[cell]).join(", ")}`
+  ).join("; "));
+  rows.forEach((row, i) => {
+    const number = document.createElement("span");
+    number.className = "wordle-guess";
+    number.textContent = i + 1;
+    board.append(number);
+    for (const cell of row) {
+      const tile = document.createElement("span");
+      tile.className = "wordle-tile";
+      tile.dataset.result = cell;
+      tile.title = wordleTileNames[cell];
+      board.append(tile);
+    }
+  });
+  const legend = document.createElement("div");
+  legend.className = "wordle-legend";
+  for (const [result, label] of Object.entries(wordleTileNames)) {
+    const item = document.createElement("span");
+    item.dataset.result = result;
+    item.textContent = label;
+    legend.append(item);
+  }
+  container.append(board, legend);
+}
+
+function renderWordleStats(bit) {
+  const card = $("wordleCard");
+  const select = $("wordleDate");
+  const previous = select.value;
+  const dates = Object.keys(wordleBoards).filter((day) => wordleBoards[day]?.[bit])
+    .map(Number).sort((a, b) => b - a);
+  card.hidden = dates.length === 0;
+  if (card.hidden) return;
+  select.replaceChildren(...dates.map((day) => new Option(
+    `${fmtDay(day, { year: "numeric", month: "short", day: "numeric" })} · ${getScore(bit, day)}`, day
+  )));
+  if (dates.includes(Number(previous))) select.value = previous;
+  select.onchange = () => renderWordleBoard($("wordleStatsBoard"), wordleBoards[select.value]?.[bit]);
+  select.onchange();
 }
 
 /* ---------- score modal ---------- */
 const scoreModal = $("scoreModal");
 let currentScoreGame = null;
 let currentScoreDay = null;
+let importedScore = null;
 
 function openScoreModal(game, day) {
   currentScoreGame = game;
@@ -1024,6 +1164,11 @@ function openScoreModal(game, day) {
   $("scoreDate").textContent = day === today() ? `Today · ${fmtDay(day)}` : fmtDay(day);
   const currentVal = getScore(game.bit, day);
   $("scoreInput").value = currentVal;
+  $("shareInput").value = "";
+  $("pastePanel").hidden = true;
+  $("pasteStatus").textContent = "";
+  importedScore = null;
+  renderWordleBoard($("scoreWordleBoard"), wordleBoards[day]?.[game.bit]);
   $("clearScore").hidden = !currentVal;
 
   const quick = $("scoreQuick");
@@ -1032,10 +1177,6 @@ function openScoreModal(game, day) {
   const lname = game.name.toLowerCase();
   if (lname.includes("wordle")) {
     presets = ["1/6", "2/6", "3/6", "4/6", "5/6", "6/6", "X/6"];
-  } else if (lname.includes("farflung") || lname.includes("chartered")) {
-    presets = ["5/5", "4/5", "3/5", "2/5", "1/5"];
-  } else if (lname.includes("plain")) {
-    presets = ["100%", "95%", "90%", "85%", "80%"];
   }
 
   presets.forEach((p) => {
@@ -1052,15 +1193,59 @@ function openScoreModal(game, day) {
   });
 
   scoreModal.showModal();
-  setTimeout(() => $("scoreInput").focus(), 30);
+  $("scoreInput").focus();
 }
 
 $("scoreForm").addEventListener("submit", (e) => {
   e.preventDefault();
   if (!currentScoreGame) return;
   const val = $("scoreInput").value.trim();
-  setScore(currentScoreGame.bit, currentScoreDay, val);
+  const board = importedScore?.score === val ? importedScore.board : null;
+  setScore(currentScoreGame.bit, currentScoreDay, val, board);
   scoreModal.close();
+});
+
+function previewScoreImport(text) {
+  const field = $("scoreInput");
+  const previous = importedScore;
+  importedScore = parseSharedResult(currentScoreGame, text);
+  const status = $("pasteStatus");
+  if (!importedScore) {
+    if (previous?.score === field.value) field.value = getScore(currentScoreGame.bit, currentScoreDay);
+    status.textContent = text.trim() ? "No score found for this game. Paste a full result or enter the score above." : "";
+    renderWordleBoard($("scoreWordleBoard"), wordleBoards[currentScoreDay]?.[currentScoreGame.bit]);
+    return;
+  }
+  field.value = importedScore.score;
+  status.textContent = `Found ${importedScore.score}. Select Save to record it for ${fmtDay(currentScoreDay)}.`;
+  renderWordleBoard($("scoreWordleBoard"), importedScore.board);
+}
+
+$("shareInput").addEventListener("input", (event) => previewScoreImport(event.target.value));
+
+$("scoreInput").addEventListener("paste", (event) => {
+  const text = event.clipboardData?.getData("text/plain");
+  if (!text || (!/\r?\n/.test(text) && !parseSharedResult(currentScoreGame, text))) return;
+  event.preventDefault();
+  $("pastePanel").hidden = false;
+  $("shareInput").value = text;
+  previewScoreImport(text);
+});
+
+$("pasteScoreClipboard").addEventListener("click", async () => {
+  const input = $("shareInput");
+  const game = currentScoreGame;
+  const day = currentScoreDay;
+  $("pastePanel").hidden = false;
+  input.focus();
+  let text = "";
+  try {
+    text = typeof NATIVE?.readClipboard === "function"
+      ? NATIVE.readClipboard() : await navigator.clipboard?.readText();
+  } catch {}
+  if (!scoreModal.open || currentScoreGame !== game || currentScoreDay !== day || !text) return;
+  input.value = text;
+  previewScoreImport(text);
 });
 
 $("clearScore").addEventListener("click", () => {

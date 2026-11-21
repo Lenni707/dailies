@@ -589,6 +589,19 @@ main {
   box-shadow: 0 6px 20px rgb(0 0 0 / .18);
 }
 .toast[hidden] { display: none; }
+#toastPaste {
+  font: inherit;
+  font-weight: 500;
+  color: var(--surface);
+  background: color-mix(in srgb, var(--surface) 22%, transparent);
+  border: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#toastPaste:hover {
+  background: color-mix(in srgb, var(--surface) 35%, transparent);
+}
 #toastScore {
   font: inherit;
   font-weight: 500;
@@ -723,8 +736,13 @@ a.ghost[hidden] { display: none; }
   display: grid;
   gap: 12px;
 }
+.score-input-wrap {
+  display: flex;
+  gap: 8px;
+}
 .score-input-wrap input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   box-sizing: border-box;
   font: 500 16px "Geist Mono", monospace;
   color: var(--text);
@@ -736,6 +754,11 @@ a.ghost[hidden] { display: none; }
 }
 .score-input-wrap input:focus {
   border-color: var(--muted);
+}
+.paste-btn {
+  font: 500 12px "Geist Mono", monospace;
+  padding: 0 12px;
+  white-space: nowrap;
 }
 .score-quick {
   display: flex;
@@ -843,4 +866,120 @@ a.ghost[hidden] { display: none; }
   padding: 28px 12px;
   color: var(--muted);
   font-size: 13px;
+}
+
+/* share card modal */
+.share-modal {
+  width: min(480px, calc(100vw - 32px));
+}
+.share-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.share-filter {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.share-filter::-webkit-scrollbar { display: none; }
+.share-pill {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.share-pill:hover { border-color: var(--muted); color: var(--text); }
+.share-pill.active { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 500; }
+
+.share-preview-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: color-mix(in srgb, var(--text) 3%, var(--bg));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+}
+.share-canvas {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / .2);
+}
+
+.share-actions-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.share-feedback {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--done);
+  padding: 4px 0;
+  animation: fadeIn .2s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+#pastePanel:not([hidden]) {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+#shareInput, #wordleDate {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+#shareInput { font-size: 16px; width: 100%; box-sizing: border-box; resize: vertical; }
+#pasteStatus { color: var(--muted); min-height: 1em; margin: 0; }
+#scoreWordleBoard:empty, .score-quick:empty { display: none; }
+
+.wordle-board {
+  display: grid;
+  grid-template-columns: 1.5rem repeat(5, clamp(22px, 7vw, 36px));
+  align-items: center;
+  gap: 5px;
+  width: max-content;
+  margin: 0 auto;
+}
+.wordle-guess { color: var(--muted); font: 12px "Geist Mono", monospace; text-align: center; }
+.wordle-tile { aspect-ratio: 1; background: var(--tile); border-radius: 5px; }
+[data-result="g"] { --tile: #538d4e; }
+[data-result="y"] { --tile: #b59f3b; }
+[data-result="x"] { --tile: #787c7e; }
+.wordle-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 14px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.wordle-legend span::before {
+  content: "";
+  display: inline-block;
+  width: .7em;
+  height: .7em;
+  margin-right: .4em;
+  background: var(--tile);
+  border-radius: 2px;
 }
