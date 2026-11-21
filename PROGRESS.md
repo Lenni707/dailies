@@ -48,6 +48,7 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
 - [x] Signing secrets added to GitHub (release builds signed with android/release.p12)
 - [x] Home-screen icon + web manifest (icons/icon.svg is the source; PNGs rendered with headless Chrome + sips)
 - [x] Score tracking: save and view scores per game (web + Android app + Overview widget), score log modal with stats, quick-guess chips, calendar history
+- [x] Calendar score heatmaps (per-game quality shading) and dedicated Statistics & Trends section with interactive SVG timeline charts (14d/30d/All) and guess distribution histograms
 
 ## Log
 - 2026-11-17: Initial version.
@@ -58,3 +59,4 @@ Static launcher page for daily browser games. No build step: `index.html`, `styl
 - 2026-11-17: Widgets redesigned around today (2×1 squares default), up next, this week, overview.
 - 2026-11-17: Fixed widgets not refreshing (Glance state version), tap-anywhere opens app, fixed green progress.
 - 2026-11-21: Added score saving and tracking for individual games (web & mobile), score badges, quick chips, calendar history scores, score log modal with stats, Android bridge & widget score display.
+- 2026-11-21: Integrated scores into calendar (game filter pills, quality level shading, dynamic legends), added Statistics & Trends section with interactive SVG score-over-time charts, KPI summary cards, and guess distribution histograms.

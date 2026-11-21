@@ -281,10 +281,103 @@ function renderList() {
   $("date").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 }
 
+/* ---------- score parsing & stats calculation ---------- */
+function parseScore(val, gameName = "") {
+  if (!val) return null;
+  val = String(val).trim();
+  const fracMatch = val.match(/^([0-9xX]+)\s*\/\s*(\d+)$/);
+  if (fracMatch) {
+    const isX = fracMatch[1].toUpperCase() === "X";
+    const den = parseInt(fracMatch[2], 10);
+    const num = isX ? den + 1 : parseInt(fracMatch[1], 10);
+    return {
+      type: "fraction",
+      value: num,
+      denominator: den,
+      raw: val,
+      isLoss: isX,
+      lowerIsBetter: true
+    };
+  }
+  if (val.toUpperCase() === "X") {
+    return { type: "fraction", value: 7, denominator: 6, raw: val, isLoss: true, lowerIsBetter: true };
+  }
+  const pctMatch = val.match(/^([0-9.]+)\s*%$/);
+  if (pctMatch) {
+    return {
+      type: "percent",
+      value: parseFloat(pctMatch[1]),
+      raw: val,
+      lowerIsBetter: false
+    };
+  }
+  const clean = val.replace(/,/g, "");
+  const numMatch = clean.match(/^([0-9.]+)/);
+  if (numMatch) {
+    return {
+      type: "number",
+      value: parseFloat(numMatch[1]),
+      raw: val,
+      lowerIsBetter: false
+    };
+  }
+  return { type: "text", value: null, raw: val };
+}
+
+function scoreLevelForGame(bit, d) {
+  if (!has(bit, d)) return 0;
+  const sc = getScore(bit, d);
+  if (!sc) return 3;
+  const g = GAMES.find((x) => x.bit === bit);
+  const ps = parseScore(sc, g ? g.name : "");
+  if (!ps || ps.value === null) return 3;
+
+  if (ps.type === "fraction") {
+    if (ps.isLoss) return 1;
+    if (ps.denominator === 6) {
+      if (ps.value <= 2) return 5;
+      if (ps.value === 3) return 4;
+      if (ps.value === 4) return 3;
+      if (ps.value === 5) return 2;
+      return 1;
+    }
+    const r = (ps.denominator - ps.value + 1) / ps.denominator;
+    return Math.max(1, Math.min(5, Math.round(r * 5)));
+  }
+
+  if (ps.type === "percent") {
+    if (ps.value >= 95) return 5;
+    if (ps.value >= 85) return 4;
+    if (ps.value >= 75) return 3;
+    if (ps.value >= 60) return 2;
+    return 1;
+  }
+
+  if (ps.type === "number") {
+    const allVals = [];
+    for (const dayStr of Object.keys(scores)) {
+      const s = scores[dayStr]?.[bit];
+      if (s) {
+        const p = parseScore(s);
+        if (p && p.value !== null) allVals.push(p.value);
+      }
+    }
+    if (allVals.length <= 1) return 4;
+    const min = Math.min(...allVals);
+    const max = Math.max(...allVals);
+    if (max === min) return 4;
+    const norm = (ps.value - min) / (max - min);
+    return Math.max(1, Math.min(5, Math.round(1 + norm * 4)));
+  }
+
+  return 3;
+}
+
 /* ---------- calendar (year grid: weeks are columns, Monday on top) ---------- */
 const WEEKS = 53;
 const weekStart = 1; // Monday
 let selected = today();
+let activeCalGame = "all";
 
 const fmtDay = (n, opts = { weekday: "short", month: "short", day: "numeric" }) =>
   fromDayNum(n).toLocaleDateString(undefined, opts);
@@ -295,6 +388,31 @@ function renderCal() {
   const dow = (fromDayNum(t).getDay() - weekStart + 7) % 7;
   const start = t - dow - (WEEKS - 1) * 7;
 
+  // Calendar filter pills
+  const calFilter = $("calFilter");
+  if (calFilter) {
+    calFilter.innerHTML = "";
+    const allBtn = document.createElement("button");
+    allBtn.type = "button";
+    allBtn.className = "cal-pill" + (activeCalGame === "all" ? " active" : "");
+    allBtn.textContent = "All games";
+    allBtn.onclick = () => { activeCalGame = "all"; renderCal(); };
+    calFilter.appendChild(allBtn);
+
+    GAMES.forEach((g) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cal-pill" + (activeCalGame === String(g.bit) ? " active" : "");
+      btn.textContent = g.name;
+      btn.onclick = () => {
+        activeCalGame = String(g.bit);
+        activeStatsGame = g.bit;
+        render();
+      };
+      calFilter.appendChild(btn);
+    });
+  }
+
   const grid = $("grid");
   const months = $("months");
   const scroller = $("scroller");
@@ -302,9 +420,12 @@ function renderCal() {
   grid.innerHTML = "";
   months.innerHTML = "";
 
+  const isSpecific = activeCalGame !== "all";
+  const selBit = isSpecific ? +activeCalGame : null;
+  const selGame = isSpecific ? (GAMES.find((g) => g.bit === selBit) || { bit: selBit, name: "Game" }) : null;
+
   let total = 0, full = 0;
   for (let w = 0; w < WEEKS; w++) {
-    // month label over the week that holds the 1st (week 0 gets one if a month starts later than week 2)
     const label = document.createElement("span");
     for (let i = 0; i < 7; i++) {
       const n = start + w * 7 + i;
@@ -321,18 +442,43 @@ function renderCal() {
       const cell = document.createElement("button");
       cell.className = "cell";
       if (n > t) { cell.classList.add("future"); cell.tabIndex = -1; grid.appendChild(cell); continue; }
-      const c = countOn(n);
-      total += c;
-      if (c && c === GAMES.length) full++;
-      cell.dataset.day = n;
-      cell.dataset.l = level(c);
-      cell.setAttribute("aria-label", `${fmtDay(n)}: ${c} of ${GAMES.length}`);
+
+      if (!isSpecific) {
+        const c = countOn(n);
+        total += c;
+        if (c && c === GAMES.length) full++;
+        cell.dataset.day = n;
+        cell.dataset.l = level(c);
+        cell.setAttribute("aria-label", `${fmtDay(n)}: ${c} of ${GAMES.length}`);
+      } else {
+        const on = has(selBit, n);
+        if (on) total++;
+        const l = scoreLevelForGame(selBit, n);
+        const sc = getScore(selBit, n);
+        cell.dataset.day = n;
+        cell.dataset.l = l;
+        cell.setAttribute("aria-label", `${fmtDay(n)}: ${selGame.name} ${sc ? "score " + sc : (on ? "played" : "not played")}`);
+      }
+
       if (n === t) cell.classList.add("today");
       if (n === selected) cell.classList.add("sel");
       grid.appendChild(cell);
     }
   }
-  $("calStats").textContent = `${total} ${total === 1 ? "game" : "games"} · ${full} full ${full === 1 ? "day" : "days"} this year`;
+
+  // Update stats header & legend
+  if (!isSpecific) {
+    $("calStats").textContent = `${total} ${total === 1 ? "game" : "games"} · ${full} full ${full === 1 ? "day" : "days"} this year`;
+    if ($("legendMin")) $("legendMin").textContent = "Less";
+    if ($("legendMax")) $("legendMax").textContent = "More";
+  } else {
+    const st = calculateGameStats(selBit);
+    $("calStats").textContent = `${st.game.name} · ${st.playedCount} played · ${st.avgScore ? "Avg " + st.avgScore : "Active streak " + st.currentStreak + "d"}`;
+    const isWordle = selGame.name.toLowerCase().includes("wordle");
+    if ($("legendMin")) $("legendMin").textContent = isWordle ? "More tries" : "Lower";
+    if ($("legendMax")) $("legendMax").textContent = isWordle ? "Fewer tries" : "Higher";
+  }
+
   scroller.scrollLeft = keepScroll ?? scroller.scrollWidth;
 
   // selected day: edit what was played & scores
@@ -509,6 +655,362 @@ $("edit").addEventListener("click", () => { renderEditor(); editor.showModal(); 
 $("emptyAdd").addEventListener("click", () => { renderEditor(); editor.showModal(); });
 $("closeEditor").addEventListener("click", () => editor.close());
 editor.addEventListener("click", (e) => { if (e.target === editor) editor.close(); });
+
+/* ---------- statistics & trends section ---------- */
+let activeStatsGame = (GAMES[0] && GAMES[0].bit) ?? 0;
+let statsChartRange = 30; // 14, 30, or "all"
+
+function calculateGameStats(bit) {
+  const g = GAMES.find((x) => x.bit === bit) || { bit, name: "Game" };
+  const allDayNums = Object.keys(scores).map(Number).sort((a, b) => a - b);
+  
+  const playedDays = [];
+  const entries = [];
+  const guessCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, X: 0 };
+  let isGuessGame = false;
+
+  for (const [dayNum, mask] of days.entries()) {
+    if (mask & (1 << bit)) playedDays.push(dayNum);
+  }
+
+  for (const d of allDayNums) {
+    const sc = scores[d]?.[bit];
+    if (sc) {
+      const ps = parseScore(sc, g.name);
+      if (ps) {
+        entries.push({ day: d, raw: sc, parsed: ps });
+        if (ps.type === "fraction" && ps.denominator === 6) {
+          isGuessGame = true;
+          if (ps.isLoss) guessCounts.X++;
+          else if (ps.value >= 1 && ps.value <= 6) guessCounts[ps.value]++;
+        }
+      }
+    }
+  }
+
+  const currentStreak = streak(bit);
+  
+  let bestStreak = 0, run = 0, prev = -999999;
+  for (const d of [...playedDays].sort((a, b) => a - b)) {
+    run = (d === prev + 1) ? run + 1 : 1;
+    prev = d;
+    bestStreak = Math.max(bestStreak, run);
+  }
+
+  let avgScore = null;
+  let bestScore = null;
+  const numValues = entries.filter((e) => e.parsed && e.parsed.value !== null && !e.parsed.isLoss);
+
+  if (numValues.length > 0) {
+    const sum = numValues.reduce((acc, e) => acc + e.parsed.value, 0);
+    const avgVal = sum / numValues.length;
+    const firstType = numValues[0].parsed.type;
+
+    if (firstType === "fraction") {
+      avgScore = `${avgVal.toFixed(1)} / ${numValues[0].parsed.denominator}`;
+      const bestVal = Math.min(...numValues.map((e) => e.parsed.value));
+      bestScore = `${bestVal} / ${numValues[0].parsed.denominator}`;
+    } else if (firstType === "percent") {
+      avgScore = `${avgVal.toFixed(1)}%`;
+      const bestVal = Math.max(...numValues.map((e) => e.parsed.value));
+      bestScore = `${bestVal}%`;
+    } else {
+      avgScore = Math.round(avgVal).toLocaleString();
+      const bestVal = Math.max(...numValues.map((e) => e.parsed.value));
+      bestScore = bestVal.toLocaleString();
+    }
+  }
+
+  const latestEntry = entries.length ? entries[entries.length - 1] : null;
+
+  return {
+    game: g,
+    playedCount: playedDays.length,
+    recordedCount: entries.length,
+    currentStreak,
+    bestStreak,
+    avgScore,
+    bestScore,
+    latestScore: latestEntry ? latestEntry.raw : null,
+    entries,
+    guessCounts,
+    isGuessGame
+  };
+}
+
+function renderStatsSection() {
+  const sec = $("statsSection");
+  if (!sec) return;
+
+  if (!GAMES.some((g) => g.bit === activeStatsGame) && GAMES.length > 0) {
+    activeStatsGame = GAMES[0].bit;
+  }
+
+  const pills = $("statsGamePills");
+  if (pills) {
+    pills.innerHTML = "";
+    GAMES.forEach((g) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "stats-pill" + (activeStatsGame === g.bit ? " active" : "");
+      btn.textContent = g.name;
+      btn.onclick = () => {
+        activeStatsGame = g.bit;
+        activeCalGame = String(g.bit);
+        render();
+      };
+      pills.appendChild(btn);
+    });
+  }
+
+  const st = calculateGameStats(activeStatsGame);
+  const subEl = $("statsSub");
+  if (subEl) subEl.textContent = `${st.game.name} performance over time`;
+  const chartTitle = $("chartTitle");
+  if (chartTitle) chartTitle.textContent = `${st.game.name} score over time`;
+
+  const rangeWrap = $("chartRange");
+  if (rangeWrap) {
+    for (const btn of rangeWrap.children) {
+      const r = btn.dataset.range;
+      btn.classList.toggle("active", String(statsChartRange) === r);
+      btn.onclick = () => {
+        statsChartRange = r === "all" ? "all" : +r;
+        renderStatsSection();
+      };
+    }
+  }
+
+  const kpiGrid = $("kpiGrid");
+  if (kpiGrid) {
+    kpiGrid.innerHTML = `
+      <div class="kpi-card">
+        <span class="kpi-label">Days Played</span>
+        <span class="kpi-val">${st.playedCount}</span>
+        <span class="kpi-sub">${st.recordedCount} with score</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Average Score</span>
+        <span class="kpi-val">${st.avgScore || "—"}</span>
+        <span class="kpi-sub">${st.recordedCount ? "Across recorded" : "No scores"}</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Best Score</span>
+        <span class="kpi-val">${st.bestScore || "—"}</span>
+        <span class="kpi-sub">Personal record</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Current Streak</span>
+        <span class="kpi-val">${st.currentStreak}d</span>
+        <span class="kpi-sub">Best: ${st.bestStreak}d</span>
+      </div>
+    `;
+  }
+
+  renderScoreChart(st);
+
+  const distCard = $("distCard");
+  const distChart = $("distChart");
+  if (distCard && distChart) {
+    if (st.isGuessGame && st.recordedCount > 0) {
+      distCard.hidden = false;
+      distChart.innerHTML = "";
+      const maxCount = Math.max(1, ...Object.values(st.guessCounts));
+      const todayScore = getScore(st.game.bit, today());
+
+      ["1", "2", "3", "4", "5", "6", "X"].forEach((tryKey) => {
+        const count = st.guessCounts[tryKey] || 0;
+        const pct = Math.max(10, Math.round((count / maxCount) * 100));
+        const isToday = todayScore && (todayScore.startsWith(tryKey + "/") || todayScore.toUpperCase() === tryKey);
+
+        const row = document.createElement("div");
+        row.className = "dist-row";
+        row.innerHTML = `
+          <span class="dist-label">${tryKey}</span>
+          <div class="dist-bar-track">
+            <div class="dist-bar ${isToday ? 'highlight' : ''}" style="width: ${pct}%;">
+              ${count}
+            </div>
+          </div>
+        `;
+        distChart.appendChild(row);
+      });
+    } else {
+      distCard.hidden = true;
+    }
+  }
+}
+
+function renderScoreChart(st) {
+  const wrap = $("scoreChartWrap");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  const t = today();
+  let entries = st.entries.filter((e) => e.parsed && e.parsed.value !== null);
+
+  if (statsChartRange === 14) {
+    entries = entries.filter((e) => e.day >= t - 14);
+  } else if (statsChartRange === 30) {
+    entries = entries.filter((e) => e.day >= t - 30);
+  }
+
+  if (entries.length === 0) {
+    wrap.innerHTML = `<div class="scores-empty">No scores recorded for this time range. Record today's score using "+ score" above to start your trend chart!</div>`;
+    return;
+  }
+
+  const W = 520, H = 160;
+  const pad = { top: 20, right: 24, bottom: 28, left: 38 };
+  const pw = W - pad.left - pad.right;
+  const ph = H - pad.top - pad.bottom;
+
+  const firstParsed = entries[0].parsed;
+  const lowerIsBetter = firstParsed.lowerIsBetter;
+  const vals = entries.map((e) => e.parsed.value);
+
+  let yMin, yMax;
+  if (firstParsed.type === "fraction") {
+    yMin = 1;
+    yMax = Math.max(firstParsed.denominator, Math.max(...vals));
+  } else if (firstParsed.type === "percent") {
+    const minVal = Math.min(...vals);
+    yMin = Math.max(0, Math.min(60, Math.floor(minVal / 10) * 10));
+    yMax = 100;
+  } else {
+    const minVal = Math.min(...vals);
+    const maxVal = Math.max(...vals);
+    yMin = Math.floor(minVal * 0.9);
+    yMax = Math.ceil(maxVal * 1.05);
+    if (yMin === yMax) { yMin -= 5; yMax += 5; }
+  }
+
+  const points = entries.map((e, i) => {
+    const x = entries.length === 1 ? pad.left + pw / 2 : pad.left + (i / (entries.length - 1)) * pw;
+    let y;
+    if (lowerIsBetter) {
+      y = pad.top + ((e.parsed.value - yMin) / (yMax - yMin)) * ph;
+    } else {
+      y = pad.top + ph - ((e.parsed.value - yMin) / (yMax - yMin)) * ph;
+    }
+    return { x, y, day: e.day, raw: e.raw, val: e.parsed.value };
+  });
+
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+
+  const defs = document.createElementNS(svgNS, "defs");
+  defs.innerHTML = `
+    <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--done)" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="var(--done)" stop-opacity="0.0"/>
+    </linearGradient>
+  `;
+  svg.appendChild(defs);
+
+  const ticks = [yMin, (yMin + yMax) / 2, yMax];
+  ticks.forEach((tickVal) => {
+    let tickY;
+    if (lowerIsBetter) {
+      tickY = pad.top + ((tickVal - yMin) / (yMax - yMin)) * ph;
+    } else {
+      tickY = pad.top + ph - ((tickVal - yMin) / (yMax - yMin)) * ph;
+    }
+
+    const line = document.createElementNS(svgNS, "line");
+    line.setAttribute("x1", pad.left);
+    line.setAttribute("x2", pad.left + pw);
+    line.setAttribute("y1", tickY);
+    line.setAttribute("y2", tickY);
+    line.setAttribute("stroke", "var(--line)");
+    line.setAttribute("stroke-dasharray", "3,3");
+    svg.appendChild(line);
+
+    const txt = document.createElementNS(svgNS, "text");
+    txt.setAttribute("x", pad.left - 6);
+    txt.setAttribute("y", tickY + 3);
+    txt.setAttribute("text-anchor", "end");
+    txt.setAttribute("fill", "var(--muted)");
+    txt.setAttribute("font-size", "10");
+    txt.setAttribute("font-family", "Geist Mono, monospace");
+    const labelStr = firstParsed.type === "percent" ? `${Math.round(tickVal)}%` : String(Math.round(tickVal));
+    txt.textContent = labelStr;
+    svg.appendChild(txt);
+  });
+
+  if (points.length >= 2) {
+    const bottomY = pad.top + ph;
+    const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+    const areaD = `${pathD} L ${points[points.length - 1].x.toFixed(1)} ${bottomY} L ${points[0].x.toFixed(1)} ${bottomY} Z`;
+
+    const area = document.createElementNS(svgNS, "path");
+    area.setAttribute("d", areaD);
+    area.setAttribute("fill", "url(#scoreGrad)");
+    svg.appendChild(area);
+
+    const line = document.createElementNS(svgNS, "path");
+    line.setAttribute("d", pathD);
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", "var(--done)");
+    line.setAttribute("stroke-width", "2.5");
+    line.setAttribute("stroke-linecap", "round");
+    line.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(line);
+  }
+
+  const dateStep = Math.max(1, Math.floor(points.length / 4));
+  points.forEach((p, i) => {
+    if (i === 0 || i === points.length - 1 || i % dateStep === 0) {
+      const txt = document.createElementNS(svgNS, "text");
+      txt.setAttribute("x", p.x);
+      txt.setAttribute("y", H - 8);
+      txt.setAttribute("text-anchor", "middle");
+      txt.setAttribute("fill", "var(--muted)");
+      txt.setAttribute("font-size", "10");
+      txt.setAttribute("font-family", "Geist Mono, monospace");
+      txt.textContent = fmtDay(p.day, { month: "short", day: "numeric" });
+      svg.appendChild(txt);
+    }
+  });
+
+  const tooltip = document.createElement("div");
+  tooltip.className = "chart-tooltip";
+  tooltip.hidden = true;
+  wrap.appendChild(tooltip);
+
+  points.forEach((p) => {
+    const circle = document.createElementNS(svgNS, "circle");
+    circle.setAttribute("cx", p.x);
+    circle.setAttribute("cy", p.y);
+    circle.setAttribute("r", points.length > 25 ? "3" : "4.5");
+    circle.setAttribute("fill", "var(--surface)");
+    circle.setAttribute("stroke", "var(--done)");
+    circle.setAttribute("stroke-width", "2");
+    circle.classList.add("chart-point");
+
+    const showTip = () => {
+      tooltip.textContent = `${p.raw} · ${fmtDay(p.day, { month: "short", day: "numeric" })}`;
+      tooltip.hidden = false;
+      const pctX = (p.x / W) * 100;
+      const pctY = (p.y / H) * 100;
+      tooltip.style.left = `${pctX}%`;
+      tooltip.style.top = `${pctY}%`;
+    };
+
+    circle.addEventListener("mouseenter", showTip);
+    circle.addEventListener("touchstart", showTip, { passive: true });
+    circle.addEventListener("click", () => {
+      const g = GAMES.find((x) => x.bit === activeStatsGame);
+      if (g) openScoreModal(g, p.day);
+    });
+
+    svg.appendChild(circle);
+  });
+
+  wrap.addEventListener("mouseleave", () => { tooltip.hidden = true; });
+  wrap.appendChild(svg);
+}
 
 /* ---------- score modal ---------- */
 const scoreModal = $("scoreModal");
@@ -711,7 +1213,11 @@ $("closeScoresLog").addEventListener("click", () => scoresLogModal.close());
 scoresLogModal.addEventListener("click", (e) => { if (e.target === scoresLogModal) scoresLogModal.close(); });
 
 /* ---------- glue ---------- */
-function render() { renderList(); renderCal(); }
+function render() {
+  renderList();
+  renderCal();
+  renderStatsSection();
+}
 
 function openGame(g) {
   if (NATIVE) NATIVE.open(g.url);

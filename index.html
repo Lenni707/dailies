@@ -52,6 +52,7 @@
         <h2>History</h2>
         <span class="stats" id="calStats"></span>
       </div>
+      <div class="cal-filter" id="calFilter"></div>
       <div class="cal-body">
         <div class="daynames"><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span></span></div>
         <div class="scroller" id="scroller">
@@ -60,13 +61,44 @@
         </div>
       </div>
       <div class="legend">
-        <span>Less</span>
+        <span id="legendMin">Less</span>
         <i data-l="0"></i><i data-l="1"></i><i data-l="2"></i><i data-l="3"></i><i data-l="4"></i><i data-l="5"></i>
-        <span>More</span>
+        <span id="legendMax">More</span>
       </div>
       <div class="detail">
         <span id="dayLabel"></span>
         <div class="chips" id="chips"></div>
+      </div>
+    </section>
+
+    <section class="stats-section" id="statsSection" aria-label="Statistics">
+      <div class="stats-head">
+        <div class="stats-head-row">
+          <h2>Statistics & Trends</h2>
+          <span class="stats-hint" id="statsSub">Score performance over time</span>
+        </div>
+        <div class="stats-game-pills" id="statsGamePills"></div>
+      </div>
+
+      <div class="kpi-grid" id="kpiGrid"></div>
+
+      <div class="chart-card">
+        <div class="chart-card-head">
+          <span class="chart-title" id="chartTitle">Score over time</span>
+          <div class="chart-range" id="chartRange">
+            <button class="range-btn" data-range="14">14d</button>
+            <button class="range-btn active" data-range="30">30d</button>
+            <button class="range-btn" data-range="all">All</button>
+          </div>
+        </div>
+        <div class="svg-chart-wrap" id="scoreChartWrap"></div>
+      </div>
+
+      <div class="chart-card" id="distCard" hidden>
+        <div class="chart-card-head">
+          <span class="chart-title">Guess distribution</span>
+        </div>
+        <div class="dist-chart" id="distChart"></div>
       </div>
     </section>
 
